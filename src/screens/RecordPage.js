@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/apiService';
+import {Audio} from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 
 const CURRENT_PATIENT_KEY = '@nurseai_current_patient';
 
@@ -19,6 +21,8 @@ const RecordPage = ({navigation}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [patientName, setPatientName] = useState('');
   const [patientId, setPatientId] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const recordingRef = useRef(null);
 
   const canStartRecording = patientName.trim().length > 0 && patientId.trim().length > 0;
 
@@ -35,16 +39,165 @@ const RecordPage = ({navigation}) => {
     };
     await AsyncStorage.setItem(CURRENT_PATIENT_KEY, JSON.stringify(patientInfo));
     
-    setIsRecording(true);
-    // TODO: Implement actual recording functionality
-    Alert.alert('Recording', 'Recording started. This feature will be implemented.');
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const {recording} = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+    }
   }, [canStartRecording, patientName, patientId]);
 
-  const handleStopRecording = useCallback(() => {
-    setIsRecording(false);
-    // TODO: Implement stop and save functionality
-    // When saving transcript, use patientName and patientId
-    Alert.alert('Recording', 'Recording stopped. This feature will be implemented.');
+  const uploadRecording = useCallback(
+    async (audioUri, photoUri) => {
+      setIsUploading(true);
+      try {
+        const uploadResult = await apiService.uploadAudio({
+          uri: audioUri,
+          photoUri,
+          patientName: patientName.trim(),
+          patientId: patientId.trim(),
+        });
+
+        if (uploadResult.success) {
+          Alert.alert('Success', 'Recording uploaded successfully.');
+        } else {
+          Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload recording.');
+        }
+      } catch (error) {
+        console.error('Upload error:', error);
+        Alert.alert('Error', 'Failed to upload recording. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [patientName, patientId]
+  );
+
+  const pickPhotoFromLibrary = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Allow photo access to attach a photo.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+
+    return result.assets?.[0]?.uri || null;
+  }, []);
+
+  const pickPhotoFromCamera = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Allow camera access to take a photo.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return null;
+    }
+
+    return result.assets?.[0]?.uri || null;
+  }, []);
+
+  const promptPhotoUpload = useCallback(
+    (audioUri) => {
+      Alert.alert(
+        'Attach Photo?',
+        'You can attach a patient photo before uploading. This is optional.',
+        [
+          {
+            text: 'Upload Without Photo',
+            onPress: () => uploadRecording(audioUri, null),
+          },
+          {
+            text: 'Choose from Library',
+            onPress: async () => {
+              const photoUri = await pickPhotoFromLibrary();
+              if (!photoUri) {
+                uploadRecording(audioUri, null);
+                return;
+              }
+              uploadRecording(audioUri, photoUri);
+            },
+          },
+          {
+            text: 'Open Camera',
+            onPress: async () => {
+              const photoUri = await pickPhotoFromCamera();
+              if (!photoUri) {
+                uploadRecording(audioUri, null);
+                return;
+              }
+              uploadRecording(audioUri, photoUri);
+            },
+          },
+        ]
+      );
+    },
+    [pickPhotoFromLibrary, pickPhotoFromCamera, uploadRecording]
+  );
+
+  const handleStopRecording = useCallback(async () => {
+    try {
+      setIsRecording(false);
+
+      const recording = recordingRef.current;
+      if (!recording) {
+        Alert.alert('Error', 'No active recording found.');
+        return;
+      }
+
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      recordingRef.current = null;
+
+      if (!uri) {
+        Alert.alert('Error', 'Recording failed. No audio file was created.');
+        return;
+      }
+
+      promptPhotoUpload(uri);
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      Alert.alert('Error', 'Failed to stop recording. Please try again.');
+    }
+  }, [promptPhotoUpload]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup recording on unmount
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current = null;
+      }
+    };
   }, []);
 
   return (
@@ -123,18 +276,18 @@ const RecordPage = ({navigation}) => {
           style={[
             styles.recordButton, 
             isRecording && styles.recordButtonActive,
-            !canStartRecording && !isRecording && styles.recordButtonDisabled
+            (!canStartRecording && !isRecording) || isUploading ? styles.recordButtonDisabled : null
           ]}
           onPress={isRecording ? handleStopRecording : handleStartRecording}
           activeOpacity={0.8}
-          disabled={!canStartRecording && !isRecording}>
+          disabled={(!canStartRecording && !isRecording) || isUploading}>
           <Ionicons 
             name={isRecording ? 'stop' : 'mic'} 
             size={32} 
             color="#FFFFFF" 
           />
           <Text style={styles.recordButtonText}>
-            {isRecording ? 'Stop Recording' : 'Start Recording'}
+            {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
           </Text>
         </TouchableOpacity>
       </ScrollView>

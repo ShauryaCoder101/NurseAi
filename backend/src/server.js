@@ -8,6 +8,7 @@ const path = require('path');
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const transcriptRoutes = require('./routes/transcriptRoutes');
+const audioRoutes = require('./routes/audioRoutes');
 
 // Initialize Express app
 const app = express();
@@ -17,6 +18,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors()); // Enable CORS for frontend
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -37,6 +39,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/transcripts', transcriptRoutes);
+app.use('/api/audio', audioRoutes);
 
 // 404 handler
 app.use((req, res) => {

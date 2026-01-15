@@ -124,6 +124,26 @@ async function initializeDatabase() {
       END $$;
     `);
 
+    // Audio recordings table - linked to user UID
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audio_records (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_uid VARCHAR(16) NOT NULL,
+        patient_name VARCHAR(255),
+        patient_id VARCHAR(255),
+        file_path TEXT NOT NULL,
+        file_name VARCHAR(255),
+        file_size BIGINT,
+        mime_type VARCHAR(100),
+        photo_path TEXT,
+        photo_name VARCHAR(255),
+        photo_size BIGINT,
+        photo_mime VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
+      )
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
@@ -139,6 +159,39 @@ async function initializeDatabase() {
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_patient_tasks_user_uid ON patient_tasks(user_uid)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_audio_records_user_uid ON audio_records(user_uid)
+    `);
+
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'photo_path'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN photo_path TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'photo_name'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN photo_name VARCHAR(255);
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'photo_size'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN photo_size BIGINT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'photo_mime'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN photo_mime VARCHAR(100);
+        END IF;
+      END $$;
     `);
 
     await client.query('COMMIT');

@@ -309,6 +309,66 @@ export const apiService = {
     return result;
   },
 
+  // Upload audio recording
+  uploadAudio: async ({uri, photoUri, patientName, patientId}) => {
+    try {
+      const token = await getAuthToken();
+      const url = `${API_BASE_URL}/audio/upload`;
+
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'recording.m4a';
+      const fileType = filename.endsWith('.m4a') ? 'audio/m4a' : 'audio/mp4';
+
+      formData.append('audio', {
+        uri,
+        name: filename,
+        type: fileType,
+      });
+
+      if (photoUri) {
+        const photoName = photoUri.split('/').pop() || 'photo.jpg';
+        let photoType = 'image/jpeg';
+        if (photoName.endsWith('.png')) {
+          photoType = 'image/png';
+        } else if (photoName.endsWith('.webp')) {
+          photoType = 'image/webp';
+        } else if (photoName.endsWith('.heic')) {
+          photoType = 'image/heic';
+        }
+
+        formData.append('photo', {
+          uri: photoUri,
+          name: photoName,
+          type: photoType,
+        });
+      }
+
+      if (patientName) formData.append('patientName', patientName);
+      if (patientId) formData.append('patientId', patientId);
+
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {success: false, error: data.error || 'Upload failed'};
+      }
+
+      return {success: true, data};
+    } catch (error) {
+      console.error('Audio upload error:', error);
+      return {success: false, error: error.message};
+    }
+  },
+
   // Get all transcripts (history)
   getTranscripts: async (params = {}) => {
     const cacheKey = `transcripts-${JSON.stringify(params)}`;

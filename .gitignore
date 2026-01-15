@@ -56,5 +56,6 @@ fastlane/test_output
 # .env  # Commented out - user wants to push .env files
 # .env.local
 backend/database/
+backend/uploads/
 *.db
 node_modules
