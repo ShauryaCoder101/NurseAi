@@ -1,0 +1,4 @@
+# node_modules/  # Commented out - user wants to push node_modules
+# .env  # Commented out - user wants to push .env files
+*.log
+.DS_Store

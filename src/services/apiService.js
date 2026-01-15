@@ -1,0 +1,359 @@
+// API Service for backend calls
+// Optimized with caching and error handling
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// For physical devices/emulators, use your computer's IP address instead of localhost
+// Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
+// Update this IP address if your computer's IP changes
+const DEV_API_URL = 'http://172.20.10.2:3000/api'; // Your computer's IP address
+// Alternative: Use 'http://localhost:3000/api' if running on web or same machine
+
+const API_BASE_URL = __DEV__ 
+  ? DEV_API_URL
+  : 'https://your-api-domain.com/api'; // Production URL
+
+const AUTH_TOKEN_KEY = '@nurseai_auth_token';
+
+// Mock Mode Configuration
+const MOCK_MODE = false; // Backend is now connected
+
+// Cache configuration
+const CACHE_DURATION = 30000; // 30 seconds
+const cache = new Map();
+
+// Mock Data for testing without backend
+const MOCK_DASHBOARD_SUMMARY = {
+  pending: 5,
+  done: 12,
+};
+
+const MOCK_PATIENT_TASKS = [
+  {
+    id: '1',
+    patientName: 'John Doe',
+    taskDescription: 'Administer medication - Morning dose',
+    scheduledTime: '09:00 AM',
+    emergencyLevel: 'High',
+    status: 'Pending',
+  },
+  {
+    id: '2',
+    patientName: 'Jane Smith',
+    taskDescription: 'Vital signs check',
+    scheduledTime: '10:30 AM',
+    emergencyLevel: 'Medium',
+    status: 'Pending',
+  },
+  {
+    id: '3',
+    patientName: 'Robert Johnson',
+    taskDescription: 'Wound dressing change',
+    scheduledTime: '11:00 AM',
+    emergencyLevel: 'High',
+    status: 'Pending',
+  },
+  {
+    id: '4',
+    patientName: 'Mary Williams',
+    taskDescription: 'Physical therapy session',
+    scheduledTime: '02:00 PM',
+    emergencyLevel: 'Low',
+    status: 'Pending',
+  },
+  {
+    id: '5',
+    patientName: 'David Brown',
+    taskDescription: 'Blood test results review',
+    scheduledTime: '03:30 PM',
+    emergencyLevel: 'Medium',
+    status: 'Done',
+  },
+];
+
+const MOCK_TRANSCRIPTS = [
+  {
+    id: '1',
+    title: 'Patient Consultation - Morning',
+    content: 'Patient presented with mild fever and headache. Vital signs stable. Prescribed rest and hydration.',
+    patient_name: 'John Doe',
+    created_at: new Date(Date.now() - 86400000).toISOString(), // Yesterday
+  },
+  {
+    id: '2',
+    title: 'Follow-up Visit',
+    content: 'Patient recovering well. No complications observed. Continue current medication regimen.',
+    patient_name: 'Jane Smith',
+    created_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+  },
+  {
+    id: '3',
+    title: 'Emergency Assessment',
+    content: 'Patient admitted with chest pain. ECG performed. Results normal. Monitoring continued.',
+    patient_name: 'Robert Johnson',
+    created_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
+  },
+];
+
+// Helper function to check if we should use mock mode
+const shouldUseMockMode = (result) => {
+  // Only use mock mode if explicitly enabled
+  // No fallback to mock mode on errors - let errors propagate
+  return MOCK_MODE;
+};
+
+// Helper function to get cached data
+const getCachedData = (key) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+};
+
+// Helper function to set cache
+const setCachedData = (key, data) => {
+  cache.set(key, { data, timestamp: Date.now() });
+};
+
+// Get auth token
+const getAuthToken = async () => {
+  try {
+    return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+  } catch (error) {
+    return null;
+  }
+};
+
+// Generic API call function with error handling and auth token
+export const apiCall = async (endpoint, options = {}) => {
+  try {
+    const token = await getAuthToken();
+    const url = `${API_BASE_URL}${endpoint}`;
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    };
+
+    // Add auth token if available
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      console.log(`🔑 Using auth token: ${token.substring(0, 20)}...`);
+    } else {
+      console.log(`⚠️ No auth token found for endpoint: ${endpoint}`);
+    }
+
+    console.log(`🌐 Making API call to: ${url}`);
+    
+    const response = await fetch(url, {
+      headers,
+      ...options,
+    });
+
+    if (!response.ok) {
+      // Handle 401 Unauthorized - but only for authenticated endpoints
+      // Don't treat login/register 401 as session expired (those are valid auth failures)
+      if (response.status === 401) {
+        const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/register') || endpoint.includes('/auth/verify-otp') || endpoint.includes('/auth/resend-otp');
+        
+        if (!isAuthEndpoint && token) {
+          // This is an authenticated endpoint that returned 401 - token expired
+          await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+          throw new Error('Session expired. Please login again.');
+        }
+        // For auth endpoints, 401 is a valid response (wrong credentials, etc.)
+        // Just return the error message from the backend
+      }
+      
+      const errorText = await response.text();
+      let errorMessage;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorText;
+      } catch {
+        errorMessage = errorText || `API Error: ${response.status}`;
+      }
+      
+      console.error(`❌ API Error ${response.status}:`, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log(`✅ API Success for ${endpoint}`);
+    return { success: true, data };
+  } catch (error) {
+    console.error(`❌ API Error for ${endpoint}:`, error.message);
+    // Provide more helpful error messages
+    if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+      return { 
+        success: false, 
+        error: `Cannot connect to backend. Make sure backend is running on ${API_BASE_URL.replace('/api', '')}` 
+      };
+    }
+    return { success: false, error: error.message };
+  }
+};
+
+// API Methods
+const unwrapApiData = (result) => {
+  if (!result || !result.success) return null;
+  // apiCall returns { success: true, data: <backend_response> }
+  // backend_response is typically { success: true, data: <payload> }
+  return result.data && result.data.data !== undefined ? result.data.data : result.data;
+};
+
+export const apiService = {
+  // Get dashboard summary (pending and done counts)
+  getDashboardSummary: async () => {
+    const cacheKey = 'dashboard-summary';
+    const cached = getCachedData(cacheKey);
+    if (cached) return { success: true, data: cached };
+
+    const result = await apiCall('/dashboard/summary');
+    
+    // If backend is not available, use mock mode
+    if (shouldUseMockMode(result)) {
+      console.log('🔧 Mock Mode: Dashboard summary');
+      setCachedData(cacheKey, MOCK_DASHBOARD_SUMMARY);
+      return { success: true, data: MOCK_DASHBOARD_SUMMARY };
+    }
+    
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      setCachedData(cacheKey, payload);
+      return { success: true, data: payload };
+    }
+    return result;
+  },
+
+  // Get patient tasks
+  getPatientTasks: async (params = {}) => {
+    const cacheKey = `patient-tasks-${JSON.stringify(params)}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return { success: true, data: cached };
+
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = `/dashboard/patient-tasks${queryString ? `?${queryString}` : ''}`;
+    const result = await apiCall(endpoint);
+    
+    // If backend is not available, use mock mode
+    if (shouldUseMockMode(result)) {
+      console.log('🔧 Mock Mode: Patient tasks');
+      let mockTasks = [...MOCK_PATIENT_TASKS];
+      
+      // Filter by status if provided
+      if (params.status) {
+        mockTasks = mockTasks.filter(task => task.status === params.status);
+      }
+      
+      // Filter by patient name if provided
+      if (params.patientName) {
+        mockTasks = mockTasks.filter(
+          task => task.patientName?.toLowerCase() === params.patientName.toLowerCase()
+        );
+      }
+      
+      // Filter by patient ID if provided
+      if (params.patientId) {
+        mockTasks = mockTasks.filter(task => task.patientId === params.patientId);
+      }
+      
+      setCachedData(cacheKey, mockTasks);
+      return { success: true, data: mockTasks };
+    }
+    
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      setCachedData(cacheKey, payload);
+      return { success: true, data: payload };
+    }
+    return result;
+  },
+
+  // Get transcript by ID
+  getTranscript: async (id) => {
+    const result = await apiCall(`/transcripts/${id}`);
+    
+    // If backend is not available, use mock mode
+    if (shouldUseMockMode(result)) {
+      console.log('🔧 Mock Mode: Get transcript');
+      const mockTranscript = MOCK_TRANSCRIPTS.find(t => t.id === id) || MOCK_TRANSCRIPTS[0];
+      return { success: true, data: mockTranscript };
+    }
+    
+    return result;
+  },
+
+  // Save transcript
+  saveTranscript: async (transcriptData) => {
+    const result = await apiCall('/transcripts', {
+      method: 'POST',
+      body: JSON.stringify(transcriptData),
+    });
+    
+    // If backend is not available, use mock mode
+    if (shouldUseMockMode(result)) {
+      console.log('🔧 Mock Mode: Save transcript');
+      const newTranscript = {
+        id: Date.now().toString(),
+        ...transcriptData,
+        created_at: new Date().toISOString(),
+      };
+      MOCK_TRANSCRIPTS.unshift(newTranscript);
+      cache.clear();
+      return { success: true, data: newTranscript };
+    }
+    
+    // Clear cache after saving
+    cache.clear();
+    return result;
+  },
+
+  // Get all transcripts (history)
+  getTranscripts: async (params = {}) => {
+    const cacheKey = `transcripts-${JSON.stringify(params)}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return { success: true, data: cached };
+
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = `/transcripts${queryString ? `?${queryString}` : ''}`;
+    const result = await apiCall(endpoint);
+    
+    // If backend is not available, use mock mode
+    if (shouldUseMockMode(result)) {
+      console.log('🔧 Mock Mode: Get transcripts');
+      let mockTranscripts = [...MOCK_TRANSCRIPTS];
+      
+      // Filter by patient name if provided
+      if (params.patientName) {
+        mockTranscripts = mockTranscripts.filter(
+          t => t.patientName?.toLowerCase() === params.patientName.toLowerCase()
+        );
+      }
+      
+      // Filter by patient ID if provided
+      if (params.patientId) {
+        mockTranscripts = mockTranscripts.filter(
+          t => t.patientId === params.patientId
+        );
+      }
+      
+      setCachedData(cacheKey, mockTranscripts);
+      return { success: true, data: mockTranscripts };
+    }
+    
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      setCachedData(cacheKey, payload);
+      return { success: true, data: payload };
+    }
+    return result;
+  },
+
+  // Clear cache
+  clearCache: () => {
+    cache.clear();
+  },
+};
+
+export default apiService;
