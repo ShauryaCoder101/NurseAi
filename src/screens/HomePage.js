@@ -6,10 +6,12 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Ionicons} from '@expo/vector-icons';
+import {Swipeable} from 'react-native-gesture-handler';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import PatientTaskCard from '../components/dashboard/PatientTaskCard';
 import apiService from '../services/apiService';
@@ -23,6 +25,9 @@ const HomePage = ({navigation}) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [currentPatient, setCurrentPatient] = useState(null);
+  const [geminiSuggestions, setGeminiSuggestions] = useState([]);
+  const [geminiError, setGeminiError] = useState(null);
+  const [expandedSuggestionId, setExpandedSuggestionId] = useState(null);
 
   // Load current patient info from storage
   useEffect(() => {
@@ -61,9 +66,10 @@ const HomePage = ({navigation}) => {
       }
 
       // Fetch summary and tasks in parallel for better performance
-      const [summaryResult, tasksResult] = await Promise.all([
+      const [summaryResult, tasksResult, geminiResult] = await Promise.all([
         apiService.getDashboardSummary(),
         apiService.getPatientTasks({sortBy: 'emergency', ...patientParams}), // Sorted by emergency level with patient filter
+        apiService.getGeminiSuggestions(),
       ]);
 
       if (summaryResult.success) {
@@ -80,10 +86,20 @@ const HomePage = ({navigation}) => {
         setTasks([]);
         setError('Failed to load patient tasks');
       }
+
+      if (geminiResult.success) {
+        setGeminiSuggestions(geminiResult.data || []);
+        setGeminiError(null);
+      } else {
+        setGeminiSuggestions([]);
+        setGeminiError(geminiResult.error || 'Failed to load Gemini suggestions');
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setSummary({pending: 0, done: 0});
       setTasks([]);
+      setGeminiSuggestions([]);
+      setGeminiError('Network error. Please check your connection.');
       setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
@@ -139,6 +155,92 @@ const HomePage = ({navigation}) => {
     ));
   }, [tasks, handleTaskPress, error]);
 
+  const handleCompleteSuggestion = useCallback(async (id) => {
+    const result = await apiService.completeGeminiSuggestion(id);
+    if (result.success) {
+      setGeminiSuggestions((prev) => prev.filter((item) => item.id !== id));
+      setExpandedSuggestionId((prev) => (prev === id ? null : prev));
+    } else {
+      setGeminiError(result.error || 'Failed to mark suggestion complete');
+    }
+  }, []);
+
+  const toggleSuggestion = useCallback((id) => {
+    setExpandedSuggestionId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const renderLeftActions = useCallback(() => {
+    return (
+      <View style={styles.swipeAction}>
+        <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+        <Text style={styles.swipeActionText}>Complete</Text>
+      </View>
+    );
+  }, []);
+
+  const renderGeminiSuggestions = useMemo(() => {
+    if (geminiError) {
+      return (
+        <View style={styles.geminiCard}>
+          <Text style={styles.geminiTitle}>Gemini Suggestions</Text>
+          <Text style={styles.geminiError}>{geminiError}</Text>
+        </View>
+      );
+    }
+
+    if (geminiSuggestions.length === 0) {
+      return (
+        <View style={styles.geminiCard}>
+          <Text style={styles.geminiTitle}>Gemini Suggestions</Text>
+          <Text style={styles.geminiEmpty}>
+            No pending suggestions yet.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.geminiList}>
+        <Text style={styles.geminiTitle}>Gemini Suggestions</Text>
+        {geminiSuggestions.map((item) => {
+          const isExpanded = expandedSuggestionId === item.id;
+          return (
+            <Swipeable
+              key={item.id}
+              renderLeftActions={renderLeftActions}
+              onSwipeableOpen={() => handleCompleteSuggestion(item.id)}>
+              <Pressable
+                onPress={() => toggleSuggestion(item.id)}
+                style={styles.geminiCardItem}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle Gemini suggestion"
+                accessibilityHint="Tap to expand or collapse the suggestion text">
+                <Text style={styles.geminiSubtitle}>
+                  {item.patientName || 'Unknown Patient'} (ID: {item.patientId || 'N/A'})
+                </Text>
+                <Text
+                  style={styles.geminiContent}
+                  numberOfLines={isExpanded ? undefined : 5}>
+                  {item.content}
+                </Text>
+                <Text style={styles.geminiHint}>
+                  {isExpanded ? 'Tap to collapse' : 'Tap to expand'}
+                </Text>
+              </Pressable>
+            </Swipeable>
+          );
+        })}
+      </View>
+    );
+  }, [
+    geminiSuggestions,
+    geminiError,
+    handleCompleteSuggestion,
+    renderLeftActions,
+    expandedSuggestionId,
+    toggleSuggestion,
+  ]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -169,6 +271,9 @@ const HomePage = ({navigation}) => {
 
         {/* Summary Cards */}
         {renderSummaryCards}
+
+        {/* Gemini Suggestions */}
+        {renderGeminiSuggestions}
 
         {/* Patient Tasks Section */}
         <View style={styles.tasksSection}>
@@ -240,6 +345,70 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginTop: 8,
+  },
+  geminiCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  geminiList: {
+    marginHorizontal: 12,
+    marginTop: 8,
+  },
+  geminiCardItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    marginBottom: 12,
+  },
+  geminiTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  geminiSubtitle: {
+    fontSize: 14,
+    color: '#007AFF',
+    marginBottom: 8,
+  },
+  geminiContent: {
+    fontSize: 14,
+    color: '#444444',
+  },
+  geminiHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#999999',
+  },
+  geminiEmpty: {
+    fontSize: 14,
+    color: '#999999',
+  },
+  geminiError: {
+    fontSize: 14,
+    color: '#FF3B30',
+  },
+  swipeAction: {
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 110,
+    borderRadius: 16,
+    marginLeft: 12,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  swipeActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginTop: 4,
   },
   sectionHeader: {
     marginBottom: 16,

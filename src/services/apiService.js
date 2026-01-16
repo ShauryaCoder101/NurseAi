@@ -144,7 +144,7 @@ export const apiCall = async (endpoint, options = {}) => {
     }
 
     console.log(`🌐 Making API call to: ${url}`);
-    
+
     const response = await fetch(url, {
       headers,
       ...options,
@@ -158,9 +158,9 @@ export const apiCall = async (endpoint, options = {}) => {
         
         if (!isAuthEndpoint && token) {
           // This is an authenticated endpoint that returned 401 - token expired
-          await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
-          throw new Error('Session expired. Please login again.');
-        }
+        await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+        throw new Error('Session expired. Please login again.');
+      }
         // For auth endpoints, 401 is a valid response (wrong credentials, etc.)
         // Just return the error message from the backend
       }
@@ -266,6 +266,41 @@ export const apiService = {
       const payload = unwrapApiData(result);
       setCachedData(cacheKey, payload);
       return { success: true, data: payload };
+    }
+    return result;
+  },
+
+  getLatestGeminiSuggestion: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = `/transcripts/gemini-latest${queryString ? `?${queryString}` : ''}`;
+    const result = await apiCall(endpoint);
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  updateGeminiMissingData: async (id, missingData) => {
+    const result = await apiCall(`/transcripts/${id}/missing-data`, {
+      method: 'PATCH',
+      body: JSON.stringify({missingData}),
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  followupGeminiSuggestion: async (id, message, patientId = null) => {
+    const result = await apiCall(`/transcripts/${id}/followup`, {
+      method: 'POST',
+      body: JSON.stringify({message, patientId}),
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
     }
     return result;
   },
@@ -407,6 +442,50 @@ export const apiService = {
       setCachedData(cacheKey, payload);
       return { success: true, data: payload };
     }
+    return result;
+  },
+
+  // Get latest Gemini suggestion for a patient
+  getLatestGeminiSuggestion: async (params = {}) => {
+    const cacheKey = `gemini-latest-${JSON.stringify(params)}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return {success: true, data: cached};
+
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = `/transcripts/gemini-latest${queryString ? `?${queryString}` : ''}`;
+    const result = await apiCall(endpoint);
+
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      setCachedData(cacheKey, payload);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  // Get all Gemini suggestions for dashboard
+  getGeminiSuggestions: async (params = {}) => {
+    const cacheKey = `gemini-suggestions-${JSON.stringify(params)}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return {success: true, data: cached};
+
+    const queryString = new URLSearchParams(params).toString();
+    const endpoint = `/transcripts/gemini-suggestions${queryString ? `?${queryString}` : ''}`;
+    const result = await apiCall(endpoint);
+
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      setCachedData(cacheKey, payload);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  // Mark Gemini suggestion completed
+  completeGeminiSuggestion: async (id) => {
+    const result = await apiCall(`/transcripts/${id}/complete`, {
+      method: 'PATCH',
+    });
     return result;
   },
 

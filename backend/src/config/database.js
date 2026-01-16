@@ -75,6 +75,9 @@ async function initializeDatabase() {
         content TEXT NOT NULL,
         patient_name VARCHAR(255),
         patient_id VARCHAR(255),
+        source VARCHAR(50) DEFAULT 'manual',
+        audio_record_id UUID,
+        suggestion_completed BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -120,6 +123,30 @@ async function initializeDatabase() {
           WHERE table_name = 'patient_tasks' AND column_name = 'patient_id'
         ) THEN
           ALTER TABLE patient_tasks ADD COLUMN patient_id VARCHAR(255);
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'source'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN source VARCHAR(50) DEFAULT 'manual';
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'audio_record_id'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN audio_record_id UUID;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'suggestion_completed'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN suggestion_completed BOOLEAN DEFAULT FALSE;
         END IF;
       END $$;
     `);

@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const {dbHelpers} = require('../config/database');
+const {generateGeminiSuggestion} = require('../services/geminiService');
 
 const AUDIO_UPLOAD_DIR = path.join(__dirname, '../../uploads/audio');
 
@@ -59,6 +60,39 @@ async function uploadAudio(req, res) {
       ]
     );
 
+    let geminiText = null;
+    let transcriptId = null;
+    try {
+      if (patientId) {
+        geminiText = await generateGeminiSuggestion({
+          audioPath: filePath,
+          mimeType,
+          patientId,
+        });
+      }
+
+      if (geminiText) {
+        const transcriptResult = await dbHelpers.run(
+          `INSERT INTO transcripts
+            (id, user_uid, title, content, patient_name, patient_id, source, audio_record_id, suggestion_completed, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW())
+           RETURNING id`,
+          [
+            userUid,
+            patientId ? `Clinical Decision Support - ${patientId}` : 'Clinical Decision Support',
+            geminiText,
+            patientName || null,
+            patientId || null,
+            'gemini',
+            result.lastID,
+          ]
+        );
+        transcriptId = transcriptResult.lastID;
+      }
+    } catch (geminiError) {
+      console.error('Gemini processing error:', geminiError);
+    }
+
     res.json({
       success: true,
       message: 'Audio uploaded successfully.',
@@ -74,6 +108,8 @@ async function uploadAudio(req, res) {
         photoMime,
         patientName: patientName || null,
         patientId: patientId || null,
+        geminiGenerated: Boolean(geminiText),
+        transcriptId,
       },
     });
   } catch (error) {

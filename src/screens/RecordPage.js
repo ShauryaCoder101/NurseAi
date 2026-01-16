@@ -8,6 +8,7 @@ import {
   Alert,
   TextInput,
   ScrollView,
+  Modal,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +23,22 @@ const RecordPage = ({navigation}) => {
   const [patientName, setPatientName] = useState('');
   const [patientId, setPatientId] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [missingFormVisible, setMissingFormVisible] = useState(false);
+  const [missingFormCompleted, setMissingFormCompleted] = useState(false);
+  const [requiredMissingKeys, setRequiredMissingKeys] = useState([]);
+  const [missingSuggestionId, setMissingSuggestionId] = useState(null);
+  const [missingData, setMissingData] = useState({
+    age: '',
+    gender: '',
+    occupation: '',
+    spo2: '',
+    bp: '',
+    hr: '',
+    rr: '',
+    weight: '',
+    height: '',
+    bmi: '',
+  });
   const recordingRef = useRef(null);
 
   const canStartRecording = patientName.trim().length > 0 && patientId.trim().length > 0;
@@ -55,12 +72,77 @@ const RecordPage = ({navigation}) => {
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
-      setIsRecording(true);
+    setIsRecording(true);
     } catch (error) {
       console.error('Error starting recording:', error);
       Alert.alert('Error', 'Failed to start recording. Please try again.');
     }
   }, [canStartRecording, patientName, patientId]);
+
+  const parseMissingFields = useCallback((content) => {
+    if (!content) return [];
+    const lower = content.toLowerCase();
+    const sectionIndex = lower.indexOf('8. missing data');
+    if (sectionIndex === -1) return [];
+
+    const after = content.slice(sectionIndex);
+    const sectionBody = after.split(/tone:/i)[0] || after;
+    const tokens = sectionBody
+      .replace(/\r/g, '')
+      .split(/[\n,\/]/g)
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean);
+
+    const matches = new Set();
+    const addIfMatch = (token, key) => {
+      if (token.includes(key)) {
+        matches.add(key);
+      }
+    };
+
+    tokens.forEach((token) => {
+      if (token.includes('spo2') || token.includes('sp02')) matches.add('spo2');
+      if (token.includes('bp') || token.includes('blood pressure')) matches.add('bp');
+      if (token.includes('hr') || token.includes('heart rate')) matches.add('hr');
+      if (token.includes('rr') || token.includes('respiratory rate')) matches.add('rr');
+      if (token.includes('weight')) matches.add('weight');
+      if (token.includes('height')) matches.add('height');
+      if (token.includes('bmi')) matches.add('bmi');
+      if (token.includes('age')) matches.add('age');
+      if (token.includes('gender') || token.includes('sex')) matches.add('gender');
+      addIfMatch(token, 'occupation');
+    });
+
+    return Array.from(matches);
+  }, []);
+
+  const handleMissingDataFlow = useCallback(async () => {
+    const geminiResult = await apiService.getLatestGeminiSuggestion({
+      patientName: patientName.trim(),
+      patientId: patientId.trim(),
+    });
+    if (!geminiResult.success) {
+      setRequiredMissingKeys([]);
+      setMissingSuggestionId(null);
+      Alert.alert('Success', 'Recording uploaded successfully.');
+      return;
+    }
+
+    const latest = geminiResult.data;
+    const missingKeys = parseMissingFields(latest?.content || '');
+
+    if (missingKeys.length === 0) {
+      setRequiredMissingKeys([]);
+      setMissingSuggestionId(null);
+      Alert.alert('Success', 'Recording uploaded successfully.');
+      return;
+    }
+
+    setRequiredMissingKeys(missingKeys);
+    setMissingSuggestionId(latest?.id || null);
+    setMissingFormVisible(true);
+    setMissingFormCompleted(false);
+  }, [parseMissingFields, patientId, patientName]);
 
   const uploadRecording = useCallback(
     async (audioUri, photoUri) => {
@@ -74,7 +156,7 @@ const RecordPage = ({navigation}) => {
         });
 
         if (uploadResult.success) {
-          Alert.alert('Success', 'Recording uploaded successfully.');
+          await handleMissingDataFlow();
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload recording.');
         }
@@ -85,7 +167,7 @@ const RecordPage = ({navigation}) => {
         setIsUploading(false);
       }
     },
-    [patientName, patientId]
+    [patientName, patientId, handleMissingDataFlow]
   );
 
   const pickPhotoFromLibrary = useCallback(async () => {
@@ -166,7 +248,7 @@ const RecordPage = ({navigation}) => {
 
   const handleStopRecording = useCallback(async () => {
     try {
-      setIsRecording(false);
+    setIsRecording(false);
 
       const recording = recordingRef.current;
       if (!recording) {
@@ -191,14 +273,80 @@ const RecordPage = ({navigation}) => {
   }, [promptPhotoUpload]);
 
   useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (missingFormVisible && !missingFormCompleted) {
+        e.preventDefault();
+        Alert.alert(
+          'Missing Patient Data',
+          'Please complete the missing patient data form before leaving.'
+        );
+      }
+    });
+
     return () => {
+      unsubscribe();
       // Cleanup recording on unmount
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
         recordingRef.current = null;
       }
     };
+  }, [navigation, missingFormVisible, missingFormCompleted]);
+
+  const isMissingFormValid = requiredMissingKeys.every(
+    (key) => missingData[key]?.trim().length > 0
+  );
+
+  const updateMissingData = useCallback((key, value) => {
+    setMissingData((prev) => ({...prev, [key]: value}));
   }, []);
+
+  const handleSubmitMissingData = useCallback(() => {
+    if (!isMissingFormValid) {
+      Alert.alert('Required Fields', 'Please fill all missing patient data.');
+      return;
+    }
+    const payload = requiredMissingKeys.reduce((acc, key) => {
+      acc[key] = missingData[key];
+      return acc;
+    }, {});
+
+    const followupMessage = [
+      'Updated patient demographics and vitals:',
+      ...Object.entries(payload).map(([key, value]) => {
+        const labelMap = {
+          age: 'Age',
+          gender: 'Gender',
+          occupation: 'Occupation',
+          spo2: 'SpO2',
+          bp: 'BP',
+          hr: 'HR',
+          rr: 'RR',
+          weight: 'Weight',
+          height: 'Height',
+          bmi: 'BMI',
+        };
+        return `${labelMap[key] || key}: ${String(value).trim()}`;
+      }),
+    ].join('\n');
+
+    const updateRequest = missingSuggestionId
+      ? apiService.followupGeminiSuggestion(
+          missingSuggestionId,
+          followupMessage,
+          patientId.trim()
+        )
+      : Promise.resolve({success: true});
+
+    updateRequest.then((result) => {
+      if (!result.success) {
+        Alert.alert('Update Failed', result.error || 'Failed to update missing data.');
+        return;
+      }
+      setMissingFormCompleted(true);
+      setMissingFormVisible(false);
+    });
+  }, [isMissingFormValid, missingSuggestionId, missingData, requiredMissingKeys]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -291,6 +439,153 @@ const RecordPage = ({navigation}) => {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={missingFormVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Missing Patient Data</Text>
+            <Text style={styles.modalSubtitle}>
+              Recording submitted. Please fill all missing demographics and vitals.
+            </Text>
+            <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalSectionTitle}>Demographics</Text>
+              {requiredMissingKeys.includes('age') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Age *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.age}
+                    onChangeText={(value) => updateMissingData('age', value)}
+                    placeholder="Age"
+                    keyboardType="number-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('gender') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Gender *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.gender}
+                    onChangeText={(value) => updateMissingData('gender', value)}
+                    placeholder="Gender"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('occupation') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Occupation *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.occupation}
+                    onChangeText={(value) => updateMissingData('occupation', value)}
+                    placeholder="Occupation"
+                  />
+                </View>
+              )}
+
+              <Text style={styles.modalSectionTitle}>Vitals</Text>
+              {requiredMissingKeys.includes('spo2') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>SpO2 *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.spo2}
+                    onChangeText={(value) => updateMissingData('spo2', value)}
+                    placeholder="SpO2"
+                    keyboardType="number-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('bp') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>BP *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.bp}
+                    onChangeText={(value) => updateMissingData('bp', value)}
+                    placeholder="BP"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('hr') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>HR *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.hr}
+                    onChangeText={(value) => updateMissingData('hr', value)}
+                    placeholder="HR"
+                    keyboardType="number-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('rr') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>RR *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.rr}
+                    onChangeText={(value) => updateMissingData('rr', value)}
+                    placeholder="RR"
+                    keyboardType="number-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('weight') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Weight *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.weight}
+                    onChangeText={(value) => updateMissingData('weight', value)}
+                    placeholder="Weight"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('height') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>Height *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.height}
+                    onChangeText={(value) => updateMissingData('height', value)}
+                    placeholder="Height"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              )}
+              {requiredMissingKeys.includes('bmi') && (
+                <View style={styles.modalField}>
+                  <Text style={styles.modalLabel}>BMI *</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={missingData.bmi}
+                    onChangeText={(value) => updateMissingData('bmi', value)}
+                    placeholder="BMI"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={[
+                styles.modalSubmit,
+                !isMissingFormValid && styles.modalSubmitDisabled,
+              ]}
+              onPress={handleSubmitMissingData}
+              activeOpacity={0.8}
+              disabled={!isMissingFormValid}>
+              <Text style={styles.modalSubmitText}>Save and Continue</Text>
+            </TouchableOpacity>
+          </View>
+      </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -400,6 +695,71 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 16,
+  },
+  modalForm: {
+    marginBottom: 16,
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  modalField: {
+    marginBottom: 12,
+  },
+  modalLabel: {
+    fontSize: 13,
+    color: '#333333',
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
+    fontSize: 15,
+    color: '#333333',
+    backgroundColor: '#FAFAFA',
+  },
+  modalSubmit: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalSubmitDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  modalSubmitText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

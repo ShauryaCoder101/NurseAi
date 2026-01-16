@@ -23,11 +23,11 @@ const PatientTaskCard = memo(({task, onPress}) => {
 
       <View style={styles.badgesContainer}>
         {emergencyLevel && (
-          <Badge label={emergencyLevel} variant={emergencyLevel.toLowerCase()} />
+        <Badge label={emergencyLevel} variant={emergencyLevel.toLowerCase()} />
         )}
         {emergencyLevel && status && <View style={styles.badgeSpacing} />}
         {status && (
-          <Badge label={status} variant={status.toLowerCase()} />
+        <Badge label={status} variant={status.toLowerCase()} />
         )}
       </View>
     </TouchableOpacity>
