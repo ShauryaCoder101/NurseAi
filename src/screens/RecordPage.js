@@ -57,6 +57,11 @@ const RecordPage = ({navigation}) => {
     await AsyncStorage.setItem(CURRENT_PATIENT_KEY, JSON.stringify(patientInfo));
     
     try {
+      if (recordingRef.current) {
+        await recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current = null;
+      }
+
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
         Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
@@ -66,16 +71,26 @@ const RecordPage = ({navigation}) => {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
       });
 
       const {recording} = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
-    setIsRecording(true);
+      setIsRecording(true);
     } catch (error) {
       console.error('Error starting recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please try again.');
+      const message = String(error?.message || '');
+      const isSessionError = message.toLowerCase().includes('session activation failed');
+      Alert.alert(
+        'Error',
+        isSessionError
+          ? 'Recording session failed to activate. Close other apps using the microphone and try again. If you are on iOS Simulator, use a physical device.'
+          : 'Failed to start recording. Please try again.'
+      );
     }
   }, [canStartRecording, patientName, patientId]);
 
@@ -248,7 +263,7 @@ const RecordPage = ({navigation}) => {
 
   const handleStopRecording = useCallback(async () => {
     try {
-    setIsRecording(false);
+      setIsRecording(false);
 
       const recording = recordingRef.current;
       if (!recording) {
@@ -257,6 +272,10 @@ const RecordPage = ({navigation}) => {
       }
 
       await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
       const uri = recording.getURI();
       recordingRef.current = null;
 
@@ -584,7 +603,7 @@ const RecordPage = ({navigation}) => {
               <Text style={styles.modalSubmitText}>Save and Continue</Text>
             </TouchableOpacity>
           </View>
-      </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
