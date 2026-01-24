@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useContext} from 'react';
+import React, {useState, useCallback, useContext, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  ScrollView,
+  Keyboard,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {AuthContext} from '../context/AuthContext';
@@ -20,6 +22,21 @@ const LoginScreen = ({navigation}) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleLogin = useCallback(async () => {
     if (!email.trim() || !password.trim()) {
@@ -47,7 +64,11 @@ const LoginScreen = ({navigation}) => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
-        <View style={styles.content}>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled">
+        <View style={styles.contentInner}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -113,7 +134,9 @@ const LoginScreen = ({navigation}) => {
               </TouchableOpacity>
             </View>
           </View>
+          <View style={{height: keyboardHeight}} />
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -131,6 +154,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 24,
+  },
+  contentInner: {
+    width: '100%',
   },
   header: {
     alignItems: 'center',

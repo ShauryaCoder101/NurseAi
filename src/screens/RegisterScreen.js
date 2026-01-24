@@ -1,4 +1,4 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Keyboard,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import authService from '../services/authService';
@@ -25,6 +26,21 @@ const RegisterScreen = ({navigation}) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const scrollViewRef = useRef(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const updateField = useCallback((field, value) => {
     setFormData((prev) => ({...prev, [field]: value}));
@@ -103,8 +119,10 @@ const RegisterScreen = ({navigation}) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
@@ -201,6 +219,7 @@ const RegisterScreen = ({navigation}) => {
                   <Text style={styles.loginLink}>Login</Text>
                 </TouchableOpacity>
               </View>
+              <View style={{height: keyboardHeight}} />
             </View>
           </View>
         </ScrollView>

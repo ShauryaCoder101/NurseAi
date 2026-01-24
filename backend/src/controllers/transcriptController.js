@@ -31,18 +31,27 @@ async function getTranscripts(req, res) {
     const transcripts = await dbHelpers.all(query, params);
 
     // Format transcripts
-    const formattedTranscripts = transcripts.map((transcript) => ({
-      id: transcript.id,
-      title: transcript.title || `${transcript.patient_name || 'Untitled'} - ${new Date(transcript.created_at).toLocaleDateString()}`,
-      date: transcript.created_at.split(' ')[0], // Get date part only
-      preview: transcript.content.substring(0, 100) + (transcript.content.length > 100 ? '...' : ''),
-      patientName: transcript.patient_name,
-      patientId: transcript.patient_id,
-      content: transcript.content,
-      source: transcript.source || 'manual',
-      audioRecordId: transcript.audio_record_id || null,
-      suggestionCompleted: transcript.suggestion_completed || false,
-    }));
+    const formattedTranscripts = transcripts.map((transcript) => {
+      const content = transcript.content || '';
+      const createdAtValue = transcript.created_at;
+      const createdAtDate = createdAtValue ? new Date(createdAtValue) : null;
+      const hasValidDate = createdAtDate && !Number.isNaN(createdAtDate.getTime());
+      const titleDate = hasValidDate ? createdAtDate.toLocaleDateString() : 'Unknown date';
+      const date = hasValidDate ? createdAtDate.toISOString().split('T')[0] : '';
+
+      return {
+        id: transcript.id,
+        title: transcript.title || `${transcript.patient_name || 'Untitled'} - ${titleDate}`,
+        date,
+        preview: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+        patientName: transcript.patient_name,
+        patientId: transcript.patient_id,
+        content,
+        source: transcript.source || 'manual',
+        audioRecordId: transcript.audio_record_id || null,
+        suggestionCompleted: transcript.suggestion_completed || false,
+      };
+    });
 
     res.json({
       success: true,

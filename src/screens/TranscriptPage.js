@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,26 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Keyboard,
 } from 'react-native';
 
 const TranscriptPage = ({navigation, route}) => {
   const [transcript, setTranscript] = useState(route?.params?.transcript || '');
+  const scrollViewRef = useRef(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSave = () => {
     // TODO: Implement save functionality
@@ -19,7 +35,10 @@ const TranscriptPage = ({navigation, route}) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
           <Text style={styles.label}>Transcript Content</Text>
           <TextInput
@@ -30,6 +49,7 @@ const TranscriptPage = ({navigation, route}) => {
             onChangeText={setTranscript}
             textAlignVertical="top"
           />
+          <View style={{height: keyboardHeight}} />
         </View>
       </ScrollView>
       

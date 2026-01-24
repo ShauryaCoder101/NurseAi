@@ -9,6 +9,7 @@ import {
   TextInput,
   ScrollView,
   Modal,
+  Keyboard,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,8 +41,26 @@ const RecordPage = ({navigation}) => {
     bmi: '',
   });
   const recordingRef = useRef(null);
+  const scrollViewRef = useRef(null);
+  const modalScrollRef = useRef(null);
+  const recordingStartRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const canStartRecording = patientName.trim().length > 0 && patientId.trim().length > 0;
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleStartRecording = useCallback(async () => {
     if (!canStartRecording) {
@@ -80,6 +99,8 @@ const RecordPage = ({navigation}) => {
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
+      recordingStartRef.current = Date.now();
+      setRecordingSeconds(0);
       setIsRecording(true);
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -230,6 +251,10 @@ const RecordPage = ({navigation}) => {
         'You can attach a patient photo before uploading. This is optional.',
         [
           {
+            text: 'Don’t Upload',
+            style: 'destructive',
+          },
+          {
             text: 'Upload Without Photo',
             onPress: () => uploadRecording(audioUri, null),
           },
@@ -292,6 +317,29 @@ const RecordPage = ({navigation}) => {
   }, [promptPhotoUpload]);
 
   useEffect(() => {
+    if (!isRecording) {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    recordingIntervalRef.current = setInterval(() => {
+      if (!recordingStartRef.current) return;
+      const elapsed = Math.floor((Date.now() - recordingStartRef.current) / 1000);
+      setRecordingSeconds(elapsed);
+    }, 500);
+
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+    };
+  }, [isRecording]);
+
+  useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (missingFormVisible && !missingFormCompleted) {
         e.preventDefault();
@@ -309,8 +357,18 @@ const RecordPage = ({navigation}) => {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
         recordingRef.current = null;
       }
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
     };
   }, [navigation, missingFormVisible, missingFormCompleted]);
+
+  const formatDuration = useCallback((totalSeconds) => {
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }, []);
 
   const isMissingFormValid = requiredMissingKeys.every(
     (key) => missingData[key]?.trim().length > 0
@@ -369,17 +427,19 @@ const RecordPage = ({navigation}) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
-        <View style={styles.iconContainer}>
-          <Ionicons 
-            name={isRecording ? 'mic' : 'mic-outline'} 
-            size={80} 
-            color={isRecording ? '#FF3B30' : '#007AFF'} 
-          />
-        </View>
+        <View style={styles.contentInner}>
+          <View style={styles.iconContainer}>
+            <Ionicons 
+              name={isRecording ? 'mic' : 'mic-outline'} 
+              size={80} 
+              color={isRecording ? '#FF3B30' : '#007AFF'} 
+            />
+          </View>
         
         <Text style={styles.title}>
           {isRecording ? 'Recording...' : 'Ready to Record'}
@@ -436,27 +496,33 @@ const RecordPage = ({navigation}) => {
               <Ionicons name="id-card" size={16} color="#666666" />
               <Text style={styles.patientInfoText}>ID: {patientId}</Text>
             </View>
+            <View style={styles.timerRow}>
+              <Ionicons name="time-outline" size={16} color="#FF3B30" />
+              <Text style={styles.timerText}>{formatDuration(recordingSeconds)}</Text>
+            </View>
           </View>
         )}
 
-        <TouchableOpacity
-          style={[
-            styles.recordButton, 
-            isRecording && styles.recordButtonActive,
-            (!canStartRecording && !isRecording) || isUploading ? styles.recordButtonDisabled : null
-          ]}
-          onPress={isRecording ? handleStopRecording : handleStartRecording}
-          activeOpacity={0.8}
-          disabled={(!canStartRecording && !isRecording) || isUploading}>
-          <Ionicons 
-            name={isRecording ? 'stop' : 'mic'} 
-            size={32} 
-            color="#FFFFFF" 
-          />
-          <Text style={styles.recordButtonText}>
-            {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.recordButton, 
+              isRecording && styles.recordButtonActive,
+              (!canStartRecording && !isRecording) || isUploading ? styles.recordButtonDisabled : null
+            ]}
+            onPress={isRecording ? handleStopRecording : handleStartRecording}
+            activeOpacity={0.8}
+            disabled={(!canStartRecording && !isRecording) || isUploading}>
+            <Ionicons 
+              name={isRecording ? 'stop' : 'mic'} 
+              size={32} 
+              color="#FFFFFF" 
+            />
+            <Text style={styles.recordButtonText}>
+              {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
+            </Text>
+          </TouchableOpacity>
+          <View style={{height: keyboardHeight}} />
+        </View>
       </ScrollView>
 
       <Modal
@@ -470,7 +536,11 @@ const RecordPage = ({navigation}) => {
             <Text style={styles.modalSubtitle}>
               Recording submitted. Please fill all missing demographics and vitals.
             </Text>
-            <ScrollView style={styles.modalForm} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              ref={modalScrollRef}
+              style={styles.modalForm}
+              keyboardShouldPersistTaps="handled">
+              <View>
               <Text style={styles.modalSectionTitle}>Demographics</Text>
               {requiredMissingKeys.includes('age') && (
                 <View style={styles.modalField}>
@@ -591,6 +661,8 @@ const RecordPage = ({navigation}) => {
                   />
                 </View>
               )}
+              <View style={{height: keyboardHeight}} />
+              </View>
             </ScrollView>
             <TouchableOpacity
               style={[
@@ -622,6 +694,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  contentInner: {
+    width: '100%',
+    alignItems: 'center',
   },
   iconContainer: {
     marginBottom: 24,
@@ -686,11 +762,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   patientInfoText: {
     fontSize: 16,
     color: '#333333',
     marginLeft: 8,
     fontWeight: '500',
+  },
+  timerText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    marginLeft: 8,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   recordButton: {
     backgroundColor: '#007AFF',

@@ -9,13 +9,11 @@ import {
   ActivityIndicator,
   TextInput,
   TouchableOpacity,
+  Pressable,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import TranscriptCard from '../components/transcript/TranscriptCard';
+import Card from '../components/common/Card';
 import apiService from '../services/apiService';
-
-const CURRENT_PATIENT_KEY = '@nurseai_current_patient';
 
 const HistoryPage = ({navigation}) => {
   const [transcripts, setTranscripts] = useState([]);
@@ -23,26 +21,7 @@ const HistoryPage = ({navigation}) => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
-  const [currentPatient, setCurrentPatient] = useState(null);
-
-  // Load current patient info from storage
-  useEffect(() => {
-    const loadCurrentPatient = async () => {
-      try {
-        const patientData = await AsyncStorage.getItem(CURRENT_PATIENT_KEY);
-        if (patientData) {
-          setCurrentPatient(JSON.parse(patientData));
-        }
-      } catch (error) {
-        console.error('Error loading current patient:', error);
-      }
-    };
-    loadCurrentPatient();
-    
-    // Listen for focus events to refresh patient info
-    const unsubscribe = navigation.addListener('focus', loadCurrentPatient);
-    return unsubscribe;
-  }, [navigation]);
+  const [expandedTranscriptId, setExpandedTranscriptId] = useState(null);
 
   // Memoized fetch function - all data from backend
   const fetchTranscripts = useCallback(async (isRefresh = false) => {
@@ -52,16 +31,7 @@ const HistoryPage = ({navigation}) => {
         setError(null);
       }
 
-      // Get current patient info for filtering
-      let patientParams = {};
-      if (currentPatient) {
-        patientParams = {
-          patientName: currentPatient.patientName,
-          patientId: currentPatient.patientId,
-        };
-      }
-
-      const result = await apiService.getTranscripts(patientParams);
+      const result = await apiService.getTranscripts();
       
       if (result.success) {
         // Only use data from backend, no fallback
@@ -80,7 +50,7 @@ const HistoryPage = ({navigation}) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentPatient]);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -103,19 +73,56 @@ const HistoryPage = ({navigation}) => {
       (t) =>
         t.title?.toLowerCase().includes(query) ||
         t.preview?.toLowerCase().includes(query) ||
-        t.patientName?.toLowerCase().includes(query)
+        t.patientName?.toLowerCase().includes(query) ||
+        t.patientId?.toLowerCase().includes(query)
     );
   }, [transcripts, searchQuery]);
 
   // Memoized render functions
+  const toggleTranscript = useCallback((id) => {
+    setExpandedTranscriptId((prev) => (prev === id ? null : id));
+  }, []);
+
   const renderItem = useCallback(
-    ({item}) => (
-      <TranscriptCard
-        transcript={item}
-        onPress={() => navigation.navigate('Transcript', {transcriptId: item.id})}
-      />
-    ),
-    [navigation]
+    ({item}) => {
+      const isExpanded = expandedTranscriptId === item.id;
+      return (
+        <Pressable
+          onPress={() => toggleTranscript(item.id)}
+          onLongPress={() => navigation.navigate('Transcript', {transcriptId: item.id})}
+          style={styles.cardPressable}>
+          <Card>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardTitle}>
+                  {item.patientName || 'Unknown Patient'}
+                </Text>
+                <Text style={styles.cardSubtitle}>
+                  ID: {item.patientId || 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.cardMeta}>
+                <Text style={styles.cardDate}>{item.date || ''}</Text>
+                {item.source === 'gemini' ? (
+                  <View style={styles.cardBadge}>
+                    <Text style={styles.cardBadgeText}>AI</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <Text
+              style={styles.cardContent}
+              numberOfLines={isExpanded ? undefined : 5}>
+              {item.content || item.preview || 'No content available'}
+            </Text>
+            <Text style={styles.cardHint}>
+              {isExpanded ? 'Tap to collapse' : 'Tap to expand'} · Long press to open
+            </Text>
+          </Card>
+        </Pressable>
+      );
+    },
+    [expandedTranscriptId, navigation, toggleTranscript]
   );
 
   const renderEmpty = useMemo(() => {
@@ -163,18 +170,12 @@ const HistoryPage = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
-        {currentPatient && (
-          <Text style={styles.patientFilter}>
-            Filtered: {currentPatient.patientName} (ID: {currentPatient.patientId})
-          </Text>
-        )}
-        
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#999999" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search transcripts..."
+            placeholder="Search by patient name or ID..."
             placeholderTextColor="#999999"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -227,11 +228,57 @@ const styles = StyleSheet.create({
     color: '#333333',
     marginBottom: 12,
   },
-  patientFilter: {
-    fontSize: 14,
+  cardPressable: {
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardHeaderText: {
+    flex: 1,
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#333333',
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: '#666666',
+    marginTop: 2,
+  },
+  cardMeta: {
+    alignItems: 'flex-end',
+  },
+  cardDate: {
+    fontSize: 12,
+    color: '#999999',
+  },
+  cardBadge: {
+    marginTop: 6,
+    backgroundColor: '#E5F2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  cardBadgeText: {
+    fontSize: 11,
     color: '#007AFF',
-    fontWeight: '500',
-    marginBottom: 8,
+    fontWeight: '600',
+  },
+  cardContent: {
+    fontSize: 14,
+    color: '#444444',
+    lineHeight: 20,
+  },
+  cardHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#999999',
   },
   searchContainer: {
     flexDirection: 'row',

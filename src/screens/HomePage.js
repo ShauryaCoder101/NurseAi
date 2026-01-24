@@ -88,7 +88,8 @@ const HomePage = ({navigation}) => {
       }
 
       if (geminiResult.success) {
-        setGeminiSuggestions(geminiResult.data || []);
+        const suggestions = geminiResult.data || [];
+        setGeminiSuggestions(suggestions.slice(0, 5));
         setGeminiError(null);
       } else {
         setGeminiSuggestions([]);
