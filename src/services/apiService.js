@@ -5,12 +5,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // For physical devices/emulators, use your computer's IP address instead of localhost
 // Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
 // Update this IP address if your computer's IP changes
-const DEV_API_URL = 'http://172.20.10.2:3000/api'; // Your computer's IP address
+const DEV_API_URL = 'http://192.168.0.116:3000/api'; // Your computer's IP address
 // Alternative: Use 'http://localhost:3000/api' if running on web or same machine
 
+const PROD_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://your-api-domain.com/api';
 const API_BASE_URL = __DEV__ 
   ? DEV_API_URL
-  : 'https://your-api-domain.com/api'; // Production URL
+  : PROD_API_URL; // Production URL
 
 const AUTH_TOKEN_KEY = '@nurseai_auth_token';
 

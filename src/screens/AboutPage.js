@@ -37,30 +37,58 @@ const AboutPage = () => {
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>How to Use</Text>
           <View style={styles.section}>
-            <Text style={styles.stepTitle}>1. Create a Transcript</Text>
+            <Text style={styles.stepTitle}>1. Sign up or log in</Text>
             <Text style={styles.stepText}>
-              Navigate to the Home page and tap "New Transcript" to start creating a new medical transcript.
+              Register with your email and verify the OTP, then log in.
             </Text>
           </View>
-          
+
           <View style={styles.section}>
-            <Text style={styles.stepTitle}>2. Enter Content</Text>
+            <Text style={styles.stepTitle}>2. Create a new recording</Text>
             <Text style={styles.stepText}>
-              Type or paste your transcript content in the text field. You can edit and format as needed.
+              Go to Record, enter patient basics, and tap Start Recording.
             </Text>
           </View>
-          
+
           <View style={styles.section}>
-            <Text style={styles.stepTitle}>3. Save Your Work</Text>
+            <Text style={styles.stepTitle}>3. Speak your clinical notes</Text>
             <Text style={styles.stepText}>
-              Tap "Save Transcript" to store your transcript. It will be available in the History page.
+              Describe the patient case clearly. The app will transcribe your speech.
             </Text>
           </View>
-          
+
           <View style={styles.section}>
-            <Text style={styles.stepTitle}>4. View History</Text>
+            <Text style={styles.stepTitle}>4. Stop and upload</Text>
             <Text style={styles.stepText}>
-              Access all your saved transcripts from the History tab. Tap any transcript to view or edit it.
+              Tap Stop, then Upload. The transcript is sent to the backend.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.stepTitle}>5. Review AI suggestions</Text>
+            <Text style={styles.stepText}>
+              Go to Home to see AI suggestions. Tap any suggestion to expand.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.stepTitle}>6. Complete missing data (if prompted)</Text>
+            <Text style={styles.stepText}>
+              If a Missing Data form appears, fill it in to update the suggestion.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.stepTitle}>7. Mark completed suggestions</Text>
+            <Text style={styles.stepText}>
+              Swipe right on a suggestion to mark it as complete.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.stepTitle}>8. View history</Text>
+            <Text style={styles.stepText}>
+              Open History to see past transcripts and details.
             </Text>
           </View>
 
@@ -69,10 +97,13 @@ const AboutPage = () => {
           <Text style={styles.sectionTitle}>About Us</Text>
           <View style={styles.section}>
             <Text style={styles.aboutText}>
-              Nurse AI is a mobile application designed to help healthcare professionals manage and organize medical transcripts efficiently.
+              The Frontline Knowledge Project envisions a world where cutting-edge information technology reaches the most marginalized communities. We bridge the knowledge gap among non-physician healthcare workers by equipping them with AI-enabled tools that enhance clinical reasoning and improve quality of care in resource constrained settings.
             </Text>
             <Text style={styles.aboutText}>
-              Our mission is to streamline medical documentation and improve workflow for nurses and healthcare providers.
+              Grounded in implementation science and evidence generation, our ongoing "Nurse-AI" pilot in rural India will demonstrate if and how artificial intelligence can strengthen decision-making, diagnostic accuracy, and adherence to clinical guidelines. Our approach is user-centered, evidence-driven, and collaborative, developed with local NGOs and technology partners to ensure sustainability and impact.
+            </Text>
+            <Text style={styles.aboutText}>
+              With proven results, we aim to take these pilots to national scale, building capacity and shaping policy to make AI-enabled primary care accessible across entire health systems. Your support will help us translate innovation into systemic change—advancing equity, evidence, and quality care where it is needed most.
             </Text>
           </View>
 

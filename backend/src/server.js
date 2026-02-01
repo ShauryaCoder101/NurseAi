@@ -1,5 +1,7 @@
 // Main Server File
-require('dotenv').config();
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -63,6 +65,11 @@ app.listen(PORT, () => {
   console.log(`\n🚀 NurseAI Backend Server running on port ${PORT}`);
   console.log(`📡 API Base URL: http://localhost:${PORT}/api`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn('⚠️  GEMINI_API_KEY is NOT set');
+  } else {
+    console.log('✅ GEMINI_API_KEY loaded');
+  }
 });
 
 module.exports = app;
