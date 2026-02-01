@@ -29,6 +29,21 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'audio') {
+      if (file.mimetype && file.mimetype.startsWith('audio/')) {
+        return cb(null, true);
+      }
+      return cb(new Error('Invalid audio file type'), false);
+    }
+    if (file.fieldname === 'photo') {
+      if (file.mimetype && file.mimetype.startsWith('image/')) {
+        return cb(null, true);
+      }
+      return cb(new Error('Invalid photo file type'), false);
+    }
+    return cb(new Error('Unexpected file field'), false);
+  },
   limits: {fileSize: 50 * 1024 * 1024}, // 50MB total per file
 });
 

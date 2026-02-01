@@ -8,6 +8,10 @@ const GEMINI_API_BASE_URL =
   'https://generativelanguage.googleapis.com/v1';
 const GEMINI_LOG_DIR = path.join(__dirname, '../../logs');
 const GEMINI_LOG_FILE = path.join(GEMINI_LOG_DIR, 'gemini.log');
+const GEMINI_LOG_ENABLED =
+  process.env.GEMINI_LOG_ENABLED === 'true' ||
+  process.env.NODE_ENV !== 'production';
+const GEMINI_LOG_INCLUDE_RAW = process.env.GEMINI_LOG_INCLUDE_RAW === 'true';
 
 let cachedModelName = null;
 
@@ -131,6 +135,7 @@ A 3-point summary emphasizing compliance and the follow-up date.
 
 If the patient's data is missing in the case synthesis, make a list of each missing attribute indiviually (eg. each vital(sp02,bp,etc)must be separately listed, like: "SpO2 /n/  BP /n/ HR /n/ RR"). if these fields are all present then skip this section.
 
+NOTE: if the audio doesnt contain anything understandable, then please send the response as 'Please provide a clear patient case description in the audio recording.'
 
 Tone: Concise, professional, and intellectually honest about resource limitations`;
 
@@ -210,21 +215,23 @@ async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
 
   const transcriptText = text.trim();
 
-  try {
-    if (!fs.existsSync(GEMINI_LOG_DIR)) {
-      fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
+  if (GEMINI_LOG_ENABLED) {
+    try {
+      if (!fs.existsSync(GEMINI_LOG_DIR)) {
+        fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
+      }
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        patientId: patientId || null,
+        audioPath,
+        model: GEMINI_MODEL,
+        transcript: transcriptText,
+        rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
+      };
+      fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
+    } catch (logError) {
+      console.error('Failed to write Gemini log:', logError);
     }
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      patientId: patientId || null,
-      audioPath,
-      model: GEMINI_MODEL,
-      transcript: transcriptText,
-      rawResponse: data,
-    };
-    fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
-  } catch (logError) {
-    console.error('Failed to write Gemini log:', logError);
   }
 
   return transcriptText;
@@ -311,21 +318,23 @@ async function generateGeminiFollowup({previousResponse, followupText, patientId
 
   const transcriptText = text.trim();
 
-  try {
-    if (!fs.existsSync(GEMINI_LOG_DIR)) {
-      fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
+  if (GEMINI_LOG_ENABLED) {
+    try {
+      if (!fs.existsSync(GEMINI_LOG_DIR)) {
+        fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
+      }
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        patientId: patientId || null,
+        model: GEMINI_MODEL,
+        transcript: transcriptText,
+        rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
+        type: 'followup',
+      };
+      fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
+    } catch (logError) {
+      console.error('Failed to write Gemini log:', logError);
     }
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      patientId: patientId || null,
-      model: GEMINI_MODEL,
-      transcript: transcriptText,
-      rawResponse: data,
-      type: 'followup',
-    };
-    fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
-  } catch (logError) {
-    console.error('Failed to write Gemini log:', logError);
   }
 
   return transcriptText;

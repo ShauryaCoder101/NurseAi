@@ -12,11 +12,20 @@ function ensureUploadDir() {
   }
 }
 
+function sanitizeSegment(value) {
+  if (!value) return 'unknown';
+  return String(value)
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 async function uploadAudio(req, res) {
   try {
     ensureUploadDir();
 
     const userUid = req.userId;
+    const userEmail = req.user?.email || 'unknown';
     const {patientName, patientId} = req.body;
 
     const audioFile = req.files?.audio?.[0];
@@ -29,10 +38,33 @@ async function uploadAudio(req, res) {
       });
     }
 
-    const filePath = audioFile.path.replace(/\\/g, '/');
-    const fileName = audioFile.originalname;
+    let filePath = audioFile.path.replace(/\\/g, '/');
+    let fileName = audioFile.originalname;
     const fileSize = audioFile.size;
     const mimeType = audioFile.mimetype;
+
+    const patientKey = patientId || patientName || 'unknown';
+    const serialResult = await dbHelpers.get(
+      `SELECT COUNT(*)::int AS count
+       FROM audio_records
+       WHERE user_uid = $1 AND COALESCE(patient_id, patient_name, 'unknown') = $2`,
+      [userUid, patientKey]
+    );
+    const nextSerial = (serialResult?.count || 0) + 1;
+    const emailSegment = sanitizeSegment(userEmail);
+    const patientSegment = sanitizeSegment(patientName || patientId || 'unknown');
+    const serialSegment = String(nextSerial);
+    const originalSegment = sanitizeSegment(audioFile.originalname);
+    const renamedFile = `${emailSegment}_${patientSegment}_${serialSegment}_${originalSegment}`;
+    const renamedPath = path.join(AUDIO_UPLOAD_DIR, renamedFile).replace(/\\/g, '/');
+
+    try {
+      fs.renameSync(audioFile.path, renamedPath);
+      filePath = renamedPath;
+      fileName = renamedFile;
+    } catch (renameError) {
+      console.error('Audio rename failed, keeping original name:', renameError);
+    }
 
     const photoPath = photoFile ? photoFile.path.replace(/\\/g, '/') : null;
     const photoName = photoFile ? photoFile.originalname : null;

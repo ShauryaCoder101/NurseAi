@@ -4,6 +4,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 
 // Import routes
@@ -15,12 +16,39 @@ const audioRoutes = require('./routes/audioRoutes');
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET is required in production');
+  process.exit(1);
+}
 
 // Middleware
-app.use(cors()); // Enable CORS for frontend
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || !isProduction) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+};
+
+app.use(helmet());
+app.use(cors(corsOptions)); // Enable CORS for frontend
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+if (!isProduction) {
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+}
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -54,6 +82,18 @@ app.use((req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({
+      success: false,
+      error: 'File too large.',
+    });
+  }
+  if (err?.message?.includes('Invalid')) {
+    return res.status(400).json({
+      success: false,
+      error: err.message,
+    });
+  }
   res.status(500).json({
     success: false,
     error: 'Internal server error',
@@ -69,6 +109,9 @@ app.listen(PORT, () => {
     console.warn('⚠️  GEMINI_API_KEY is NOT set');
   } else {
     console.log('✅ GEMINI_API_KEY loaded');
+  }
+  if (isProduction && !process.env.CORS_ORIGINS) {
+    console.warn('⚠️  CORS_ORIGINS is not set; CORS will block all origins.');
   }
 });
 

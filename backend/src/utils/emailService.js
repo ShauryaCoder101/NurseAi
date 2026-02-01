@@ -44,6 +44,9 @@ async function sendOTPEmail(email, otp) {
 // For development: if email is not configured, log OTP to console
 async function sendOTP(email, otp) {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Email credentials are not configured');
+    }
     console.log('\n========================================');
     console.log('📧 OTP EMAIL (Development Mode)');
     console.log('========================================');
