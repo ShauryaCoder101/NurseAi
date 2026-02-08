@@ -96,7 +96,7 @@ const RecordPage = ({navigation}) => {
       });
 
       const {recording} = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        Audio.RecordingOptionsPresets.LOW_QUALITY
       );
       recordingRef.current = recording;
       recordingStartRef.current = Date.now();

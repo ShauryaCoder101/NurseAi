@@ -68,7 +68,11 @@ const HomePage = ({navigation}) => {
       // Fetch summary and tasks in parallel for better performance
       const [summaryResult, tasksResult, geminiResult] = await Promise.all([
         apiService.getDashboardSummary(),
-        apiService.getPatientTasks({sortBy: 'emergency', ...patientParams}), // Sorted by emergency level with patient filter
+        apiService.getPatientTasks({
+          sortBy: 'emergency',
+          status: 'Pending',
+          ...patientParams,
+        }), // Sorted by emergency level with patient filter
         apiService.getGeminiSuggestions(),
       ]);
 
@@ -125,6 +129,19 @@ const HomePage = ({navigation}) => {
     navigation.navigate('Transcript', {taskId: task.id, task});
   }, [navigation]);
 
+  const handleCompleteTask = useCallback(async (taskId) => {
+    const result = await apiService.completePatientTask(taskId);
+    if (result.success) {
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      setSummary((prev) => ({
+        pending: Math.max(0, (prev?.pending || 0) - 1),
+        done: (prev?.done || 0) + 1,
+      }));
+    } else {
+      setError(result.error || 'Failed to complete task');
+    }
+  }, []);
+
   // Memoized render functions for performance
   const renderSummaryCards = useMemo(() => (
     <View style={styles.summaryContainer}>
@@ -148,13 +165,17 @@ const HomePage = ({navigation}) => {
     }
 
     return tasks.map((task) => (
-      <PatientTaskCard
+      <Swipeable
         key={task.id}
+        renderLeftActions={renderLeftActions}
+        onSwipeableOpen={() => handleCompleteTask(task.id)}>
+        <PatientTaskCard
         task={task}
         onPress={() => handleTaskPress(task)}
       />
+      </Swipeable>
     ));
-  }, [tasks, handleTaskPress, error]);
+  }, [tasks, handleTaskPress, handleCompleteTask, error, renderLeftActions]);
 
   const handleCompleteSuggestion = useCallback(async (id) => {
     const result = await apiService.completeGeminiSuggestion(id);
@@ -256,6 +277,7 @@ const HomePage = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       <ScrollView
         style={styles.scrollView}
+        contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
@@ -276,18 +298,7 @@ const HomePage = ({navigation}) => {
         {/* Gemini Suggestions */}
         {renderGeminiSuggestions}
 
-        {/* Patient Tasks Section */}
-        <View style={styles.tasksSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Patient Tasks</Text>
-            <Text style={styles.sectionSubtitle}>
-              {currentPatient 
-                ? `Filtered: ${currentPatient.patientName} (ID: ${currentPatient.patientId})`
-                : 'Sorted by emergency level'}
-            </Text>
-          </View>
-          {renderTasks}
-        </View>
+        {/* Patient Tasks Section removed */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -309,9 +320,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
     backgroundColor: '#FFFFFF',
-    paddingTop: 16,
   },
   headerIcon: {
     width: 56,
@@ -339,6 +350,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 12,
     paddingTop: 16,
+    backgroundColor: '#FFFFFF',
   },
   tasksSection: {
     backgroundColor: '#FFFFFF',

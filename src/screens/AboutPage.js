@@ -70,21 +70,21 @@ const AboutPage = () => {
               Go to Home to see AI suggestions. Tap any suggestion to expand.
             </Text>
           </View>
-
+          
           <View style={styles.section}>
             <Text style={styles.stepTitle}>6. Complete missing data (if prompted)</Text>
             <Text style={styles.stepText}>
               If a Missing Data form appears, fill it in to update the suggestion.
             </Text>
           </View>
-
+          
           <View style={styles.section}>
             <Text style={styles.stepTitle}>7. Mark completed suggestions</Text>
             <Text style={styles.stepText}>
               Swipe right on a suggestion to mark it as complete.
             </Text>
           </View>
-
+          
           <View style={styles.section}>
             <Text style={styles.stepTitle}>8. View history</Text>
             <Text style={styles.stepText}>

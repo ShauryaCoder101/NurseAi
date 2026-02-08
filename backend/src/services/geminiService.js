@@ -12,8 +12,30 @@ const GEMINI_LOG_ENABLED =
   process.env.GEMINI_LOG_ENABLED === 'true' ||
   process.env.NODE_ENV !== 'production';
 const GEMINI_LOG_INCLUDE_RAW = process.env.GEMINI_LOG_INCLUDE_RAW === 'true';
+const GEMINI_MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS || 2000);
 
 let cachedModelName = null;
+let geminiQueue = Promise.resolve();
+let lastGeminiRequestAt = 0;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const runGeminiThrottled = (task) => {
+  const execute = async () => {
+    if (Number.isFinite(GEMINI_MIN_INTERVAL_MS) && GEMINI_MIN_INTERVAL_MS > 0) {
+      const now = Date.now();
+      const wait = Math.max(0, GEMINI_MIN_INTERVAL_MS - (now - lastGeminiRequestAt));
+      if (wait > 0) {
+        await sleep(wait);
+      }
+      lastGeminiRequestAt = Date.now();
+    }
+    return task();
+  };
+
+  geminiQueue = geminiQueue.then(execute, execute);
+  return geminiQueue;
+};
 
 const MODEL_PREFERENCES = [
   'gemini-1.5-flash',
@@ -140,9 +162,10 @@ NOTE: if the audio doesnt contain anything understandable, then please send the 
 Tone: Concise, professional, and intellectually honest about resource limitations`;
 
 async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not set');
-  }
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
 
   const audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
   const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
@@ -234,13 +257,15 @@ async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
     }
   }
 
-  return transcriptText;
+    return transcriptText;
+  });
 }
 
 async function generateGeminiFollowup({previousResponse, followupText, patientId}) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not set');
-  }
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
 
   const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
 
@@ -337,7 +362,8 @@ async function generateGeminiFollowup({previousResponse, followupText, patientId
     }
   }
 
-  return transcriptText;
+    return transcriptText;
+  });
 }
 
 module.exports = {generateGeminiSuggestion, generateGeminiFollowup};

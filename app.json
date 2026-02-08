@@ -14,13 +14,33 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nurseai.app"
+      "bundleIdentifier": "com.nurseai.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "We need access to your microphone to record patient notes.",
+        "NSCameraUsageDescription": "We need camera access to take patient photos.",
+        "NSPhotoLibraryUsageDescription": "We need photo library access to attach patient images.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
       "package": "com.nurseai.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "19a81a18-b3a5-490b-9c4f-d6142b3cb09f"
+      }
     }
   }
 }

@@ -1,8 +1,46 @@
 // PostgreSQL Database Configuration
 const {Pool} = require('pg');
+const dns = require('dns');
 
-// Create PostgreSQL connection pool
-const dbConfig = {
+// Prefer IPv4 lookups on platforms that support it (Node 18+)
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
+let pool;
+
+async function buildDbConfig() {
+  if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    let resolvedHost = url.hostname;
+    try {
+      const ipv4Addresses = await dns.promises.resolve4(url.hostname);
+      if (ipv4Addresses && ipv4Addresses.length > 0) {
+        resolvedHost = ipv4Addresses[0];
+      }
+    } catch (err) {
+      console.warn(
+        '⚠️  No IPv4 address resolved for DB host; using hostname:',
+        err.message
+      );
+    }
+
+    return {
+      host: resolvedHost,
+      port: parseInt(url.port, 10) || 5432,
+      database: url.pathname.replace('/', '') || 'postgres',
+      user: decodeURIComponent(url.username || ''),
+      password: decodeURIComponent(url.password || ''),
+      max: 20, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+    };
+  }
+
+  const config = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME || 'nurseai',
@@ -10,15 +48,20 @@ const dbConfig = {
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-};
+  };
 
-// Only add password if it's explicitly set (not empty string)
-// If DB_PASSWORD is not set or empty, PostgreSQL will use trust/md5 auth if configured
-if (process.env.DB_PASSWORD !== undefined && process.env.DB_PASSWORD !== '') {
-  dbConfig.password = process.env.DB_PASSWORD;
+  // Only add password if it's explicitly set (not empty string)
+  // If DB_PASSWORD is not set or empty, PostgreSQL will use trust/md5 auth if configured
+  if (process.env.DB_PASSWORD !== undefined && process.env.DB_PASSWORD !== '') {
+    config.password = process.env.DB_PASSWORD;
+  }
+
+  return config;
 }
 
-const pool = new Pool(dbConfig);
+const poolReady = (async () => {
+  const dbConfig = await buildDbConfig();
+  pool = new Pool(dbConfig);
 
 // Test connection
 pool.on('connect', () => {
@@ -29,6 +72,7 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
   process.exit(-1);
 });
+})();
 
 // Function to generate 16-digit UID
 function generateUID() {
@@ -38,6 +82,7 @@ function generateUID() {
 
 // Initialize database tables
 async function initializeDatabase() {
+  await poolReady;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -241,6 +286,7 @@ initializeDatabase().catch((err) => {
 const dbHelpers = {
   // Run query (INSERT, UPDATE, DELETE)
   run: async (sql, params = []) => {
+    await poolReady;
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
@@ -257,6 +303,7 @@ const dbHelpers = {
 
   // Get single row
   get: async (sql, params = []) => {
+    await poolReady;
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
@@ -270,6 +317,7 @@ const dbHelpers = {
 
   // Get all rows
   all: async (sql, params = []) => {
+    await poolReady;
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
@@ -283,6 +331,7 @@ const dbHelpers = {
 
   // Execute query (for transactions)
   query: async (sql, params = []) => {
+    await poolReady;
     const client = await pool.connect();
     try {
       const result = await client.query(sql, params);
@@ -296,12 +345,14 @@ const dbHelpers = {
 
   // Get a client for transactions
   getClient: async () => {
+    await poolReady;
     return await pool.connect();
   },
 };
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
+  await poolReady;
   await pool.end();
   console.log('Database pool closed');
   process.exit(0);

@@ -1,6 +1,6 @@
 // Main Server File
 if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
+require('dotenv').config();
 }
 const express = require('express');
 const cors = require('cors');
@@ -28,6 +28,11 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+if (isProduction) {
+  // Trust the ELB/NGINX proxy so rate limits use real client IPs
+  app.set('trust proxy', 1);
+}
 
 const corsOptions = {
   origin: (origin, callback) => {

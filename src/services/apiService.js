@@ -2,13 +2,13 @@
 // Optimized with caching and error handling
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// For physical devices/emulators, use your computer's IP address instead of localhost
-// Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)
-// Update this IP address if your computer's IP changes
-const DEV_API_URL = 'http://192.168.0.116:3000/api'; // Your computer's IP address
-// Alternative: Use 'http://localhost:3000/api' if running on web or same machine
+// Default to the public API domain for this setup.
+// Override with EXPO_PUBLIC_API_URL if you need a different endpoint.
+const DEV_API_URL = 'https://api.nurseai.in/api';
 
-const PROD_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://your-api-domain.com/api';
+const PROD_API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  'https://api.nurseai.in/api';
 const API_BASE_URL = __DEV__ 
   ? DEV_API_URL
   : PROD_API_URL; // Production URL
@@ -267,6 +267,17 @@ export const apiService = {
       const payload = unwrapApiData(result);
       setCachedData(cacheKey, payload);
       return { success: true, data: payload };
+    }
+    return result;
+  },
+
+  completePatientTask: async (id) => {
+    const result = await apiCall(`/dashboard/patient-tasks/${id}/complete`, {
+      method: 'PATCH',
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
     }
     return result;
   },

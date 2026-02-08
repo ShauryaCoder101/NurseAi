@@ -6,16 +6,19 @@ async function getDashboardSummary(req, res) {
   try {
     const userId = req.userId;
 
-    // Get pending tasks count
+    // Gemini suggestion counts (pending vs completed)
     const pendingResult = await dbHelpers.get(
-      'SELECT COUNT(*)::int as count FROM patient_tasks WHERE user_uid = $1 AND status = $2',
-      [userId, 'Pending']
+      `SELECT COUNT(*)::int as count
+       FROM transcripts
+       WHERE user_uid = $1 AND suggestion_completed = FALSE`,
+      [userId]
     );
 
-    // Get done tasks count
     const doneResult = await dbHelpers.get(
-      'SELECT COUNT(*)::int as count FROM patient_tasks WHERE user_uid = $1 AND status = $2',
-      [userId, 'Done']
+      `SELECT COUNT(*)::int as count
+       FROM transcripts
+       WHERE user_uid = $1 AND suggestion_completed = TRUE`,
+      [userId]
     );
 
     res.json({
@@ -38,7 +41,7 @@ async function getDashboardSummary(req, res) {
 async function getPatientTasks(req, res) {
   try {
     const userId = req.userId;
-    const {sortBy = 'emergency', patientName, patientId} = req.query;
+    const {sortBy = 'emergency', patientName, patientId, status} = req.query;
 
     // Build query with optional filters
     let query = 'SELECT * FROM patient_tasks WHERE user_uid = $1';
@@ -55,6 +58,19 @@ async function getPatientTasks(req, res) {
       query += ` AND patient_id = $${paramIndex}`;
       params.push(patientId.trim());
       paramIndex++;
+    }
+
+    if (status && status.toLowerCase() !== 'all') {
+      const normalizedStatus = status.trim().toLowerCase();
+      if (normalizedStatus === 'done' || normalizedStatus === 'completed') {
+        query += ` AND LOWER(status) IN ($${paramIndex}, $${paramIndex + 1})`;
+        params.push('done', 'completed');
+        paramIndex += 2;
+      } else {
+        query += ` AND LOWER(status) = $${paramIndex}`;
+        params.push(normalizedStatus);
+        paramIndex++;
+      }
     }
 
     let orderBy = 'created_at DESC';
@@ -98,7 +114,49 @@ async function getPatientTasks(req, res) {
   }
 }
 
+// Mark patient task as completed
+async function completePatientTask(req, res) {
+  try {
+    const userId = req.userId;
+    const {id} = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Task id is required.',
+      });
+    }
+
+    const result = await dbHelpers.query(
+      `UPDATE patient_tasks
+       SET status = 'Done', updated_at = NOW()
+       WHERE id = $1 AND user_uid = $2
+       RETURNING id, status`,
+      [id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Task not found.',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Complete patient task error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 module.exports = {
   getDashboardSummary,
   getPatientTasks,
+  completePatientTask,
 };
