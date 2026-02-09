@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const {dbHelpers, generateUID} = require('../config/database');
 const {generateToken} = require('../utils/jwt');
 const {generateOTP, getOTPExpiry, isOTPExpired} = require('../utils/otpGenerator');
-const {sendOTP} = require('../utils/emailService');
+const {sendOTP, sendPasswordResetOTP} = require('../utils/emailService');
 
 // Register user
 async function register(req, res) {
@@ -60,11 +60,14 @@ async function register(req, res) {
     const expiresAt = getOTPExpiry();
 
     // Delete old OTPs for this email
-    await dbHelpers.run('DELETE FROM otps WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+    await dbHelpers.run(
+      "DELETE FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'verify'",
+      [normalizedEmail]
+    );
 
     // Insert new OTP (store normalized email)
     await dbHelpers.run(
-      'INSERT INTO otps (email, otp, expires_at) VALUES ($1, $2, $3)',
+      "INSERT INTO otps (email, otp, purpose, expires_at) VALUES ($1, $2, 'verify', $3)",
       [normalizedEmail, otp, expiresAt]
     );
 
@@ -104,13 +107,16 @@ async function verifyOTP(req, res) {
 
     // Get OTP from database - check with case-insensitive email
     const otpRecord = await dbHelpers.get(
-      'SELECT * FROM otps WHERE LOWER(email) = LOWER($1) ORDER BY created_at DESC LIMIT 1',
+      "SELECT * FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'verify' ORDER BY created_at DESC LIMIT 1",
       [normalizedEmail]
     );
 
     if (!otpRecord) {
       // Check if any OTP exists for this email (for debugging)
-      const allOtps = await dbHelpers.all('SELECT email, created_at FROM otps WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+      const allOtps = await dbHelpers.all(
+        "SELECT email, created_at FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'verify'",
+        [normalizedEmail]
+      );
       console.log(`❌ OTP not found for ${normalizedEmail}. Found ${allOtps.length} OTP records.`);
       if (allOtps.length === 0) {
         // Check if user exists
@@ -157,7 +163,10 @@ async function verifyOTP(req, res) {
     );
 
     // Delete used OTP (use normalized email)
-    await dbHelpers.run('DELETE FROM otps WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+    await dbHelpers.run(
+      "DELETE FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'verify'",
+      [normalizedEmail]
+    );
 
     // Get user data (use normalized email)
     const user = await dbHelpers.get('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
@@ -216,11 +225,14 @@ async function resendOTP(req, res) {
     const expiresAt = getOTPExpiry();
 
     // Delete old OTPs
-    await dbHelpers.run('DELETE FROM otps WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
+    await dbHelpers.run(
+      "DELETE FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'verify'",
+      [normalizedEmail]
+    );
 
     // Insert new OTP (store normalized email)
     await dbHelpers.run(
-      'INSERT INTO otps (email, otp, expires_at) VALUES ($1, $2, $3)',
+      "INSERT INTO otps (email, otp, purpose, expires_at) VALUES ($1, $2, 'verify', $3)",
       [normalizedEmail, otp, expiresAt]
     );
 
@@ -319,9 +331,134 @@ async function login(req, res) {
   }
 }
 
+// Request password reset OTP
+async function requestPasswordReset(req, res) {
+  try {
+    const {email} = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await dbHelpers.get('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [
+      normalizedEmail,
+    ]);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        error: 'User not found.',
+      });
+    }
+
+    const otp = generateOTP();
+    const expiresAt = getOTPExpiry();
+
+    await dbHelpers.run(
+      "DELETE FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'reset'",
+      [normalizedEmail]
+    );
+
+    await dbHelpers.run(
+      "INSERT INTO otps (email, otp, purpose, expires_at) VALUES ($1, $2, 'reset', $3)",
+      [normalizedEmail, otp, expiresAt]
+    );
+
+    console.log(`📧 Password reset OTP stored for ${normalizedEmail}: ${otp}`);
+    await sendPasswordResetOTP(email, otp);
+
+    res.json({
+      success: true,
+      message: 'Password reset OTP sent to your email.',
+    });
+  } catch (error) {
+    console.error('Request password reset error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
+// Reset password with OTP
+async function resetPassword(req, res) {
+  try {
+    const {email, otp, newPassword} = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email, OTP, and new password are required.',
+      });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long.',
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const otpRecord = await dbHelpers.get(
+      "SELECT * FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'reset' ORDER BY created_at DESC LIMIT 1",
+      [normalizedEmail]
+    );
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        error: 'OTP not found. Please request a new one.',
+      });
+    }
+
+    if (isOTPExpired(otpRecord.expires_at)) {
+      return res.status(400).json({
+        success: false,
+        error: 'OTP has expired. Please request a new one.',
+      });
+    }
+
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid OTP. Please check and try again.',
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await dbHelpers.run('UPDATE users SET password = $1, updated_at = NOW() WHERE LOWER(email) = LOWER($2)', [
+      hashedPassword,
+      normalizedEmail,
+    ]);
+
+    await dbHelpers.run(
+      "DELETE FROM otps WHERE LOWER(email) = LOWER($1) AND purpose = 'reset'",
+      [normalizedEmail]
+    );
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 module.exports = {
   register,
   verifyOTP,
   resendOTP,
   login,
+  requestPasswordReset,
+  resetPassword,
 };

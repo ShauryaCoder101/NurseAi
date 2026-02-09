@@ -47,6 +47,8 @@ const RecordPage = ({navigation}) => {
   const recordingIntervalRef = useRef(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [photoOptionsVisible, setPhotoOptionsVisible] = useState(false);
+  const [pendingAudioUri, setPendingAudioUri] = useState(null);
 
   const canStartRecording = patientName.trim().length > 0 && patientId.trim().length > 0;
   useEffect(() => {
@@ -244,47 +246,50 @@ const RecordPage = ({navigation}) => {
     return result.assets?.[0]?.uri || null;
   }, []);
 
-  const promptPhotoUpload = useCallback(
-    (audioUri) => {
-      Alert.alert(
-        'Attach Photo?',
-        'You can attach a patient photo before uploading. This is optional.',
-        [
-          {
-            text: 'Don’t Upload',
-            style: 'destructive',
-          },
-          {
-            text: 'Upload Without Photo',
-            onPress: () => uploadRecording(audioUri, null),
-          },
-          {
-            text: 'Choose from Library',
-            onPress: async () => {
-              const photoUri = await pickPhotoFromLibrary();
-              if (!photoUri) {
-                uploadRecording(audioUri, null);
-                return;
-              }
-              uploadRecording(audioUri, photoUri);
-            },
-          },
-          {
-            text: 'Open Camera',
-            onPress: async () => {
-              const photoUri = await pickPhotoFromCamera();
-              if (!photoUri) {
-                uploadRecording(audioUri, null);
-                return;
-              }
-              uploadRecording(audioUri, photoUri);
-            },
-          },
-        ]
-      );
-    },
-    [pickPhotoFromLibrary, pickPhotoFromCamera, uploadRecording]
-  );
+  const promptPhotoUpload = useCallback((audioUri) => {
+    setPendingAudioUri(audioUri);
+    setPhotoOptionsVisible(true);
+  }, []);
+
+  const handleDiscardRecording = useCallback(() => {
+    setPhotoOptionsVisible(false);
+    setPendingAudioUri(null);
+  }, []);
+
+  const handleUploadWithoutPhoto = useCallback(() => {
+    const audioUri = pendingAudioUri;
+    setPhotoOptionsVisible(false);
+    setPendingAudioUri(null);
+    if (audioUri) {
+      uploadRecording(audioUri, null);
+    }
+  }, [pendingAudioUri, uploadRecording]);
+
+  const handleChooseFromLibrary = useCallback(async () => {
+    const audioUri = pendingAudioUri;
+    if (!audioUri) return;
+    setPhotoOptionsVisible(false);
+    const photoUri = await pickPhotoFromLibrary();
+    if (!photoUri) {
+      setPhotoOptionsVisible(true);
+      return;
+    }
+    setPendingAudioUri(null);
+    uploadRecording(audioUri, photoUri);
+  }, [pendingAudioUri, pickPhotoFromLibrary, uploadRecording]);
+
+  const handleTakePhoto = useCallback(async () => {
+    const audioUri = pendingAudioUri;
+    if (!audioUri) return;
+    setPhotoOptionsVisible(false);
+    const photoUri = await pickPhotoFromCamera();
+    if (!photoUri) {
+      setPhotoOptionsVisible(true);
+      return;
+    }
+    setPendingAudioUri(null);
+    uploadRecording(audioUri, photoUri);
+  }, [pendingAudioUri, pickPhotoFromCamera, uploadRecording]);
 
   const handleStopRecording = useCallback(async () => {
     try {
@@ -524,6 +529,63 @@ const RecordPage = ({navigation}) => {
           <View style={{height: keyboardHeight}} />
         </View>
       </ScrollView>
+
+      <Modal
+        visible={photoOptionsVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleDiscardRecording}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.photoModalCard}>
+            <Text style={styles.modalTitle}>Attach Photo?</Text>
+            <Text style={styles.modalSubtitle}>
+              You can add a patient photo before uploading. This is optional.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.photoOptionButton,
+                styles.photoOptionPrimary,
+                isUploading && styles.photoOptionDisabled,
+              ]}
+              onPress={handleUploadWithoutPhoto}
+              disabled={isUploading}>
+              <Text style={[styles.photoOptionText, styles.photoOptionPrimaryText]}>
+                Upload Without Photo
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.photoOptionButton,
+                isUploading && styles.photoOptionDisabled,
+              ]}
+              onPress={handleChooseFromLibrary}
+              disabled={isUploading}>
+              <Text style={styles.photoOptionText}>Choose from Library</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.photoOptionButton,
+                isUploading && styles.photoOptionDisabled,
+              ]}
+              onPress={handleTakePhoto}
+              disabled={isUploading}>
+              <Text style={styles.photoOptionText}>Take Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.photoOptionButton,
+                styles.photoOptionDestructive,
+                isUploading && styles.photoOptionDisabled,
+              ]}
+              onPress={handleDiscardRecording}
+              disabled={isUploading}>
+              <Text style={[styles.photoOptionText, styles.photoOptionDestructiveText]}>
+                Don’t Upload
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={missingFormVisible}
@@ -814,6 +876,42 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     maxHeight: '85%',
+  },
+  photoModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+  },
+  photoOptionButton: {
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#F8F8F8',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  photoOptionPrimary: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  photoOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333333',
+  },
+  photoOptionPrimaryText: {
+    color: '#FFFFFF',
+  },
+  photoOptionDestructive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FF3B30',
+  },
+  photoOptionDestructiveText: {
+    color: '#FF3B30',
+  },
+  photoOptionDisabled: {
+    opacity: 0.6,
   },
   modalTitle: {
     fontSize: 20,

@@ -40,11 +40,11 @@ async function getTranscripts(req, res) {
       const date = hasValidDate ? createdAtDate.toISOString().split('T')[0] : '';
 
       return {
-      id: transcript.id,
+        id: transcript.id,
         title: transcript.title || `${transcript.patient_name || 'Untitled'} - ${titleDate}`,
         date,
         preview: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
-      patientName: transcript.patient_name,
+        patientName: transcript.patient_name,
         patientId: transcript.patient_id,
         content,
         source: transcript.source || 'manual',
@@ -278,6 +278,29 @@ async function markGeminiSuggestionComplete(req, res) {
   }
 }
 
+// Reopen a completed Gemini suggestion
+async function reopenGeminiSuggestion(req, res) {
+  try {
+    const userId = req.userId;
+    const {id} = req.params;
+
+    await dbHelpers.run(
+      `UPDATE transcripts
+       SET suggestion_completed = FALSE, updated_at = NOW()
+       WHERE id = $1 AND user_uid = $2 AND source = 'gemini'`,
+      [id, userId]
+    );
+
+    res.json({success: true});
+  } catch (error) {
+    console.error('Reopen Gemini suggestion error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 function replaceMissingSection(content, provided) {
   if (!content) return content;
   const headerRegex = /8\.\s*Missing Data[\s\S]*?(?=\n\d+\.\s|\nTone:|$)/i;
@@ -423,6 +446,7 @@ module.exports = {
   getLatestGeminiSuggestion,
   getGeminiSuggestions,
   markGeminiSuggestionComplete,
+  reopenGeminiSuggestion,
   updateGeminiMissingData,
   followupGeminiSuggestion,
 };

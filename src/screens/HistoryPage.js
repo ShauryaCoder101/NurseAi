@@ -22,6 +22,7 @@ const HistoryPage = ({navigation}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
   const [expandedTranscriptId, setExpandedTranscriptId] = useState(null);
+  const [openCaseLoading, setOpenCaseLoading] = useState({});
 
   // Memoized fetch function - all data from backend
   const fetchTranscripts = useCallback(async (isRefresh = false) => {
@@ -86,6 +87,7 @@ const HistoryPage = ({navigation}) => {
   const renderItem = useCallback(
     ({item}) => {
       const isExpanded = expandedTranscriptId === item.id;
+      const canOpenCase = item.source === 'gemini' && item.suggestionCompleted;
       return (
         <Pressable
           onPress={() => toggleTranscript(item.id)}
@@ -118,11 +120,37 @@ const HistoryPage = ({navigation}) => {
             <Text style={styles.cardHint}>
               {isExpanded ? 'Tap to collapse' : 'Tap to expand'} · Long press to open
             </Text>
+            {isExpanded && canOpenCase && (
+              <TouchableOpacity
+                style={[
+                  styles.openCaseButton,
+                  openCaseLoading[item.id] && styles.openCaseButtonDisabled,
+                ]}
+                onPress={async () => {
+                  setOpenCaseLoading((prev) => ({...prev, [item.id]: true}));
+                  const result = await apiService.reopenGeminiSuggestion(item.id);
+                  if (result.success) {
+                    setTranscripts((prev) =>
+                      prev.map((t) =>
+                        t.id === item.id ? {...t, suggestionCompleted: false} : t
+                      )
+                    );
+                  } else {
+                    setError(result.error || 'Failed to reopen case');
+                  }
+                  setOpenCaseLoading((prev) => ({...prev, [item.id]: false}));
+                }}
+                disabled={openCaseLoading[item.id]}>
+                <Text style={styles.openCaseButtonText}>
+                  {openCaseLoading[item.id] ? 'Opening...' : 'Open Case'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </Card>
         </Pressable>
       );
     },
-    [expandedTranscriptId, navigation, toggleTranscript]
+    [expandedTranscriptId, navigation, openCaseLoading, toggleTranscript]
   );
 
   const renderEmpty = useMemo(() => {
@@ -279,6 +307,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: '#999999',
+  },
+  openCaseButton: {
+    marginTop: 12,
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  openCaseButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  openCaseButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',

@@ -7,6 +7,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Pressable,
+  Alert,
+  TextInput,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -28,6 +30,8 @@ const HomePage = ({navigation}) => {
   const [geminiSuggestions, setGeminiSuggestions] = useState([]);
   const [geminiError, setGeminiError] = useState(null);
   const [expandedSuggestionId, setExpandedSuggestionId] = useState(null);
+  const [askAiInputs, setAskAiInputs] = useState({});
+  const [askAiLoading, setAskAiLoading] = useState({});
 
   // Load current patient info from storage
   useEffect(() => {
@@ -117,6 +121,14 @@ const HomePage = ({navigation}) => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      apiService.clearCache();
+      fetchDashboardData(true);
+    });
+    return unsubscribe;
+  }, [navigation, fetchDashboardData]);
+
   // Pull to refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -182,10 +194,48 @@ const HomePage = ({navigation}) => {
     if (result.success) {
       setGeminiSuggestions((prev) => prev.filter((item) => item.id !== id));
       setExpandedSuggestionId((prev) => (prev === id ? null : prev));
+      setSummary((prev) => ({
+        pending: Math.max(0, (prev?.pending || 0) - 1),
+        done: (prev?.done || 0) + 1,
+      }));
     } else {
       setGeminiError(result.error || 'Failed to mark suggestion complete');
     }
   }, []);
+
+  const handleAskAiChange = useCallback((id, value) => {
+    setAskAiInputs((prev) => ({...prev, [id]: value}));
+  }, []);
+
+  const handleAskAiSubmit = useCallback(
+    async (item) => {
+      const message = (askAiInputs[item.id] || '').trim();
+      if (!message) {
+        Alert.alert('Ask AI', 'Please enter a question before sending.');
+        return;
+      }
+      setAskAiLoading((prev) => ({...prev, [item.id]: true}));
+      const result = await apiService.followupGeminiSuggestion(
+        item.id,
+        message,
+        item.patientId
+      );
+      if (result.success) {
+        setGeminiSuggestions((prev) =>
+          prev.map((suggestion) =>
+            suggestion.id === item.id
+              ? {...suggestion, content: result.data?.content || suggestion.content}
+              : suggestion
+          )
+        );
+        setAskAiInputs((prev) => ({...prev, [item.id]: ''}));
+      } else {
+        Alert.alert('Ask AI', result.error || 'Failed to send follow-up.');
+      }
+      setAskAiLoading((prev) => ({...prev, [item.id]: false}));
+    },
+    [askAiInputs]
+  );
 
   const toggleSuggestion = useCallback((id) => {
     setExpandedSuggestionId((prev) => (prev === id ? null : id));
@@ -248,6 +298,32 @@ const HomePage = ({navigation}) => {
                 <Text style={styles.geminiHint}>
                   {isExpanded ? 'Tap to collapse' : 'Tap to expand'}
                 </Text>
+                {isExpanded && (
+                  <View style={styles.askAiContainer}>
+                    <Text style={styles.askAiLabel}>Ask AI</Text>
+                    <TextInput
+                      style={styles.askAiInput}
+                      placeholder="Ask a follow-up question..."
+                      placeholderTextColor="#999999"
+                      value={askAiInputs[item.id] || ''}
+                      onChangeText={(value) => handleAskAiChange(item.id, value)}
+                      editable={!askAiLoading[item.id]}
+                      multiline
+                    />
+                    <Pressable
+                      style={[
+                        styles.askAiButton,
+                        (!askAiInputs[item.id]?.trim() || askAiLoading[item.id]) &&
+                          styles.askAiButtonDisabled,
+                      ]}
+                      onPress={() => handleAskAiSubmit(item)}
+                      disabled={!askAiInputs[item.id]?.trim() || askAiLoading[item.id]}>
+                      <Text style={styles.askAiButtonText}>
+                        {askAiLoading[item.id] ? 'Sending...' : 'Send'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
               </Pressable>
             </Swipeable>
           );
@@ -258,6 +334,10 @@ const HomePage = ({navigation}) => {
     geminiSuggestions,
     geminiError,
     handleCompleteSuggestion,
+    handleAskAiChange,
+    handleAskAiSubmit,
+    askAiInputs,
+    askAiLoading,
     renderLeftActions,
     expandedSuggestionId,
     toggleSuggestion,
@@ -399,6 +479,41 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: '#999999',
+  },
+  askAiContainer: {
+    marginTop: 12,
+  },
+  askAiLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  askAiInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 44,
+    fontSize: 14,
+    color: '#333333',
+    backgroundColor: '#FAFAFA',
+    marginBottom: 10,
+  },
+  askAiButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  askAiButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  askAiButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   geminiEmpty: {
     fontSize: 14,

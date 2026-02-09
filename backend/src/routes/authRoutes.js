@@ -28,6 +28,8 @@ const loginLimiter = rateLimit({
 router.post('/register', authLimiter, authController.register);
 router.post('/verify-otp', otpLimiter, authController.verifyOTP);
 router.post('/resend-otp', otpLimiter, authController.resendOTP);
+router.post('/request-password-reset', otpLimiter, authController.requestPasswordReset);
+router.post('/reset-password', otpLimiter, authController.resetPassword);
 router.post('/login', loginLimiter, authController.login);
 
 module.exports = router;

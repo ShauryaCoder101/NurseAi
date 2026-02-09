@@ -106,9 +106,26 @@ async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) NOT NULL,
         otp VARCHAR(6) NOT NULL,
+        purpose VARCHAR(20) DEFAULT 'verify',
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'otps' AND column_name = 'purpose'
+        ) THEN
+          ALTER TABLE otps ADD COLUMN purpose VARCHAR(20) DEFAULT 'verify';
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      UPDATE otps SET purpose = 'verify' WHERE purpose IS NULL;
     `);
 
     // Transcripts table - linked to user UID
@@ -225,6 +242,9 @@ async function initializeDatabase() {
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_otps_email ON otps(email)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_otps_email_purpose ON otps(email, purpose)
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_transcripts_user_uid ON transcripts(user_uid)

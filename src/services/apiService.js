@@ -155,7 +155,13 @@ export const apiCall = async (endpoint, options = {}) => {
       // Handle 401 Unauthorized - but only for authenticated endpoints
       // Don't treat login/register 401 as session expired (those are valid auth failures)
       if (response.status === 401) {
-        const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/register') || endpoint.includes('/auth/verify-otp') || endpoint.includes('/auth/resend-otp');
+        const isAuthEndpoint =
+          endpoint.includes('/auth/login') ||
+          endpoint.includes('/auth/register') ||
+          endpoint.includes('/auth/verify-otp') ||
+          endpoint.includes('/auth/resend-otp') ||
+          endpoint.includes('/auth/request-password-reset') ||
+          endpoint.includes('/auth/reset-password');
         
         if (!isAuthEndpoint && token) {
           // This is an authenticated endpoint that returned 401 - token expired
@@ -496,6 +502,14 @@ export const apiService = {
   // Mark Gemini suggestion completed
   completeGeminiSuggestion: async (id) => {
     const result = await apiCall(`/transcripts/${id}/complete`, {
+      method: 'PATCH',
+    });
+    return result;
+  },
+
+  // Reopen a completed Gemini suggestion
+  reopenGeminiSuggestion: async (id) => {
+    const result = await apiCall(`/transcripts/${id}/reopen`, {
       method: 'PATCH',
     });
     return result;

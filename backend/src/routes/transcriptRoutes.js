@@ -10,6 +10,7 @@ router.get('/gemini-suggestions', authenticate, transcriptController.getGeminiSu
 router.post('/:id/followup', authenticate, transcriptController.followupGeminiSuggestion);
 router.patch('/:id/missing-data', authenticate, transcriptController.updateGeminiMissingData);
 router.patch('/:id/complete', authenticate, transcriptController.markGeminiSuggestionComplete);
+router.patch('/:id/reopen', authenticate, transcriptController.reopenGeminiSuggestion);
 router.get('/:id', authenticate, transcriptController.getTranscript);
 router.post('/', authenticate, transcriptController.saveTranscript);
 

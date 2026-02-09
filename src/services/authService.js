@@ -156,6 +156,53 @@ export const authService = {
     }
   },
 
+  // Request password reset OTP
+  requestPasswordReset: async (email) => {
+    try {
+      const {apiCall} = await import('./apiService');
+      const result = await apiCall('/auth/request-password-reset', {
+        method: 'POST',
+        body: JSON.stringify({email}),
+      });
+      if (shouldUseMockMode(result)) {
+        console.log('🔧 Mock Mode: Password reset OTP sent. Use OTP: ' + TEST_OTP);
+        return {
+          success: true,
+          message: 'Password reset OTP sent. (Mock Mode: Use ' + TEST_OTP + ')',
+        };
+      }
+      return result;
+    } catch (error) {
+      console.log('🔧 Mock Mode: Password reset OTP (fallback). Use OTP: ' + TEST_OTP);
+      return {
+        success: true,
+        message: 'Password reset OTP sent. (Mock Mode: Use ' + TEST_OTP + ')',
+      };
+    }
+  },
+
+  // Reset password with OTP
+  resetPassword: async ({email, otp, newPassword}) => {
+    try {
+      const {apiCall} = await import('./apiService');
+      const result = await apiCall('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({email, otp, newPassword}),
+      });
+      if (shouldUseMockMode(result)) {
+        console.log('🔧 Mock Mode: Password reset successful');
+        return {success: true, message: 'Password reset successfully.'};
+      }
+      return result;
+    } catch (error) {
+      if (MOCK_MODE) {
+        console.log('🔧 Mock Mode: Password reset (fallback)');
+        return {success: true, message: 'Password reset successfully.'};
+      }
+      return {success: false, error: error.message};
+    }
+  },
+
   // Login
   login: async (email, password) => {
     try {
