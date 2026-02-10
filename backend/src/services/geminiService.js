@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const GEMINI_API_BASE_URL =
   process.env.GEMINI_API_BASE_URL ||
   'https://generativelanguage.googleapis.com/v1';
@@ -37,12 +37,7 @@ const runGeminiThrottled = (task) => {
   return geminiQueue;
 };
 
-const MODEL_PREFERENCES = [
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-pro',
-];
+const MODEL_PREFERENCES = ['gemini-2.5-flash-lite'];
 
 const normalizeModelName = (modelName) => {
   if (!modelName) return null;

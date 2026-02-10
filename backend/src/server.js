@@ -46,6 +46,24 @@ const corsOptions = {
   },
 };
 
+// Health check endpoint (before ALL middleware - ELB needs this)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'NurseAI Backend API is running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Root route for ELB health checks (some ELBs check / as well)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'NurseAI Backend API',
+    health: '/health',
+  });
+});
+
 app.use(helmet());
 app.use(cors(corsOptions)); // Enable CORS for frontend
 app.use(express.json()); // Parse JSON bodies
@@ -59,15 +77,6 @@ if (!isProduction) {
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'NurseAI Backend API is running',
-    timestamp: new Date().toISOString(),
-  });
 });
 
 // API Routes

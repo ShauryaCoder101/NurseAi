@@ -40,11 +40,11 @@ async function getTranscripts(req, res) {
       const date = hasValidDate ? createdAtDate.toISOString().split('T')[0] : '';
 
       return {
-        id: transcript.id,
+      id: transcript.id,
         title: transcript.title || `${transcript.patient_name || 'Untitled'} - ${titleDate}`,
         date,
         preview: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
-        patientName: transcript.patient_name,
+      patientName: transcript.patient_name,
         patientId: transcript.patient_id,
         content,
         source: transcript.source || 'manual',

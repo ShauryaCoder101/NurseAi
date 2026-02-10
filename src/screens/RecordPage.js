@@ -194,6 +194,15 @@ const RecordPage = ({navigation}) => {
         });
 
         if (uploadResult.success) {
+          const geminiGenerated = uploadResult.data?.data?.geminiGenerated;
+          const geminiError = uploadResult.data?.data?.geminiError;
+          if (geminiGenerated === false) {
+            Alert.alert(
+              'Uploaded',
+              geminiError || 'Recording uploaded, but no Gemini suggestion was generated.'
+            );
+            return;
+          }
           await handleMissingDataFlow();
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload recording.');

@@ -94,13 +94,20 @@ async function uploadAudio(req, res) {
 
     let geminiText = null;
     let transcriptId = null;
+    let geminiErrorMessage = null;
     try {
-      if (patientId) {
+      if (!patientId) {
+        geminiErrorMessage = 'Patient ID is required for Gemini suggestions.';
+      } else {
         geminiText = await generateGeminiSuggestion({
           audioPath: filePath,
           mimeType,
           patientId,
         });
+        if (!geminiText || !geminiText.trim()) {
+          geminiText = null;
+          geminiErrorMessage = 'Gemini returned an empty response.';
+        }
       }
 
       if (geminiText) {
@@ -123,6 +130,7 @@ async function uploadAudio(req, res) {
       }
     } catch (geminiError) {
       console.error('Gemini processing error:', geminiError);
+      geminiErrorMessage = geminiError?.message || 'Gemini processing failed.';
     }
 
     res.json({
@@ -141,6 +149,7 @@ async function uploadAudio(req, res) {
         patientName: patientName || null,
         patientId: patientId || null,
         geminiGenerated: Boolean(geminiText),
+        geminiError: geminiErrorMessage,
         transcriptId,
       },
     });
