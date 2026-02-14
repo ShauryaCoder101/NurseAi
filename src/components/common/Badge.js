@@ -1,5 +1,6 @@
 import React, {memo} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
+import colors from '../../styles/colors';
 
 const Badge = memo(({label, variant = 'default'}) => {
   const getVariantStyle = () => {
@@ -28,9 +29,9 @@ const Badge = memo(({label, variant = 'default'}) => {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     alignSelf: 'flex-start',
   },
   badgeText: {
@@ -40,22 +41,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   high: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.error,
   },
   medium: {
-    backgroundColor: '#FF9500',
+    backgroundColor: colors.warning,
   },
   low: {
-    backgroundColor: '#34C759',
+    backgroundColor: colors.success,
   },
   pending: {
-    backgroundColor: '#FF9500',
+    backgroundColor: colors.warning,
   },
   done: {
-    backgroundColor: '#34C759',
+    backgroundColor: colors.success,
   },
   default: {
-    backgroundColor: '#8E8E93',
+    backgroundColor: colors.textTertiary,
   },
 });
 

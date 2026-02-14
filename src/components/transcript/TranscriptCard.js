@@ -1,6 +1,7 @@
 import React from 'react';
 import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import Card from '../common/Card';
+import colors from '../../styles/colors';
 
 const TranscriptCard = ({transcript, onPress}) => {
   return (
@@ -29,18 +30,18 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: colors.textPrimary,
     flex: 1,
   },
   date: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textTertiary,
     marginLeft: 10,
   },
   preview: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

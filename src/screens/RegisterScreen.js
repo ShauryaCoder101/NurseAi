@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import authService from '../services/authService';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const RegisterScreen = ({navigation}) => {
   const [formData, setFormData] = useState({
@@ -27,6 +28,7 @@ const RegisterScreen = ({navigation}) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const scrollViewRef = useRef(null);
+  const {onScroll, handleFocus} = useKeyboardCentering(scrollViewRef);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -122,7 +124,9 @@ const RegisterScreen = ({navigation}) => {
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}>
           <View style={styles.content}>
             {/* Header */}
             <View style={styles.header}>
@@ -140,6 +144,7 @@ const RegisterScreen = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={formData.email}
                   onChangeText={(value) => updateField('email', value)}
+                  onFocus={handleFocus}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -154,6 +159,7 @@ const RegisterScreen = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={formData.phoneNumber}
                   onChangeText={(value) => updateField('phoneNumber', value)}
+                  onFocus={handleFocus}
                   keyboardType="phone-pad"
                 />
               </View>
@@ -166,6 +172,7 @@ const RegisterScreen = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={formData.password}
                   onChangeText={(value) => updateField('password', value)}
+                  onFocus={handleFocus}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -188,6 +195,7 @@ const RegisterScreen = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={formData.confirmPassword}
                   onChangeText={(value) => updateField('confirmPassword', value)}
+                  onFocus={handleFocus}
                   secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
                 />
@@ -231,7 +239,7 @@ const RegisterScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7F8FA',
   },
   keyboardView: {
     flex: 1,
@@ -245,7 +253,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 28,
   },
   title: {
     fontSize: 28,
@@ -259,15 +267,27 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
     height: 52,
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
   },
   inputIcon: {
     marginRight: 12,
@@ -286,6 +306,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,

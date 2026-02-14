@@ -57,4 +57,10 @@ router.post(
   audioController.uploadAudio
 );
 
+router.post(
+  '/:id/retry-gemini',
+  authenticate,
+  audioController.retryGeminiForAudioRecord
+);
+
 module.exports = router;

@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo} from 'react';
+import React, {useState, useEffect, useCallback, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import {Ionicons} from '@expo/vector-icons';
 import Card from '../components/common/Card';
 import apiService from '../services/apiService';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const HistoryPage = ({navigation}) => {
   const [transcripts, setTranscripts] = useState([]);
@@ -23,6 +24,8 @@ const HistoryPage = ({navigation}) => {
   const [error, setError] = useState(null);
   const [expandedTranscriptId, setExpandedTranscriptId] = useState(null);
   const [openCaseLoading, setOpenCaseLoading] = useState({});
+  const listRef = useRef(null);
+  const {onScroll, handleFocus} = useKeyboardCentering(listRef);
 
   // Memoized fetch function - all data from backend
   const fetchTranscripts = useCallback(async (isRefresh = false) => {
@@ -195,7 +198,7 @@ const HistoryPage = ({navigation}) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
         {/* Search Bar */}
@@ -207,6 +210,7 @@ const HistoryPage = ({navigation}) => {
             placeholderTextColor="#999999"
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={handleFocus}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -217,6 +221,7 @@ const HistoryPage = ({navigation}) => {
       </View>
 
       <FlatList
+        ref={listRef}
         data={filteredTranscripts}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
@@ -227,6 +232,8 @@ const HistoryPage = ({navigation}) => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
@@ -236,7 +243,7 @@ const HistoryPage = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -341,6 +348,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 12,
+    backgroundColor: '#F5F5F5',
   },
   emptyList: {
     flex: 1,

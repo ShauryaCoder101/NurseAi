@@ -1,13 +1,14 @@
 import React, {memo} from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
+import colors from '../../styles/colors';
 
 const SummaryCard = memo(({type, count, label}) => {
   const isPending = type === 'pending';
   const iconName = isPending ? 'alert-circle' : 'checkmark-circle';
-  const backgroundColor = isPending ? '#FFE5E5' : '#E5F5E5';
-  const iconColor = isPending ? '#FF3B30' : '#34C759';
-  const textColor = isPending ? '#FF3B30' : '#34C759';
+  const backgroundColor = isPending ? '#FFEFF0' : '#ECFAF1';
+  const iconColor = isPending ? colors.error : colors.success;
+  const textColor = isPending ? colors.error : colors.success;
 
   return (
     <View style={[styles.card, {backgroundColor}]}>
@@ -23,12 +24,19 @@ const SummaryCard = memo(({type, count, label}) => {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     alignItems: 'center',
     marginHorizontal: 6,
     minHeight: 120,
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   iconContainer: {
     width: 48,
@@ -40,7 +48,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 4,
   },
   count: {

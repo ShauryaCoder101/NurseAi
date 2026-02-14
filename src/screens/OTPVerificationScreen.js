@@ -16,6 +16,7 @@ import {
 import {Ionicons} from '@expo/vector-icons';
 import authService from '../services/authService';
 import {AuthContext} from '../context/AuthContext';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const OTPVerificationScreen = ({navigation, route}) => {
   const {checkAuthStatus} = useContext(AuthContext);
@@ -25,6 +26,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
   const [resending, setResending] = useState(false);
   const inputRefs = useRef([]);
   const scrollViewRef = useRef(null);
+  const {onScroll, handleFocus} = useKeyboardCentering(scrollViewRef);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -151,7 +153,9 @@ const OTPVerificationScreen = ({navigation, route}) => {
         <ScrollView
           ref={scrollViewRef}
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}>
         <View style={styles.contentInner}>
           {/* Header */}
           <View style={styles.header}>
@@ -174,6 +178,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
                 style={styles.otpInput}
                 value={digit}
                 onChangeText={(value) => handleOtpChange(value, index)}
+                onFocus={handleFocus}
                 onKeyPress={({nativeEvent}) => handleKeyPress(nativeEvent.key, index)}
                 keyboardType="number-pad"
                 maxLength={1}
@@ -226,7 +231,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7F8FA',
   },
   keyboardView: {
     flex: 1,
@@ -238,6 +243,16 @@ const styles = StyleSheet.create({
   },
   contentInner: {
     width: '100%',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   header: {
     alignItems: 'center',
@@ -247,10 +262,15 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#E5F2FF',
+    backgroundColor: '#E8F1FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   title: {
     fontSize: 28,
@@ -275,14 +295,14 @@ const styles = StyleSheet.create({
   otpInput: {
     width: 48,
     height: 56,
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
     borderRadius: 12,
     textAlign: 'center',
     fontSize: 24,
     fontWeight: '600',
     color: '#333333',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
   },
   button: {
     backgroundColor: '#007AFF',
@@ -290,6 +310,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,

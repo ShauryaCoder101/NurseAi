@@ -16,8 +16,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../services/apiService';
 import {Audio} from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const CURRENT_PATIENT_KEY = '@nurseai_current_patient';
+const GEMINI_RETRY_CACHE_KEY = '@nurseai_gemini_retry';
+const GEMINI_RETRY_WINDOW_MS = 30 * 60 * 1000;
+const GEMINI_RETRY_DELAY_MS = 60 * 1000;
+const GEMINI_RETRY_MAX_ATTEMPTS = 3;
 
 const RecordPage = ({navigation}) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -28,6 +33,8 @@ const RecordPage = ({navigation}) => {
   const [missingFormCompleted, setMissingFormCompleted] = useState(false);
   const [requiredMissingKeys, setRequiredMissingKeys] = useState([]);
   const [missingSuggestionId, setMissingSuggestionId] = useState(null);
+  const [pendingGeminiRetry, setPendingGeminiRetry] = useState(null);
+  const [retryCountdown, setRetryCountdown] = useState(0);
   const [missingData, setMissingData] = useState({
     age: '',
     gender: '',
@@ -43,6 +50,10 @@ const RecordPage = ({navigation}) => {
   const recordingRef = useRef(null);
   const scrollViewRef = useRef(null);
   const modalScrollRef = useRef(null);
+  const {onScroll: onMainScroll, handleFocus: handleMainFocus} =
+    useKeyboardCentering(scrollViewRef);
+  const {onScroll: onModalScroll, handleFocus: handleModalFocus} =
+    useKeyboardCentering(modalScrollRef);
   const recordingStartRef = useRef(null);
   const recordingIntervalRef = useRef(null);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -63,6 +74,68 @@ const RecordPage = ({navigation}) => {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const loadPendingRetry = async () => {
+      try {
+        const cached = await AsyncStorage.getItem(GEMINI_RETRY_CACHE_KEY);
+        if (!cached) return;
+        const parsed = JSON.parse(cached);
+        if (!parsed?.expiresAt || Date.now() > parsed.expiresAt) {
+          await AsyncStorage.removeItem(GEMINI_RETRY_CACHE_KEY);
+          return;
+        }
+        setPendingGeminiRetry(parsed);
+      } catch (error) {
+        console.error('Failed to load retry cache:', error);
+      }
+    };
+    loadPendingRetry();
+  }, []);
+
+  useEffect(() => {
+    if (!pendingGeminiRetry) {
+      setRetryCountdown(0);
+      return;
+    }
+    const updateCountdown = () => {
+      const remainingMs = Math.max(0, pendingGeminiRetry.nextRetryAt - Date.now());
+      setRetryCountdown(Math.ceil(remainingMs / 1000));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [pendingGeminiRetry]);
+
+  const persistRetryState = useCallback(async (nextState) => {
+    if (!nextState) {
+      setPendingGeminiRetry(null);
+      await AsyncStorage.removeItem(GEMINI_RETRY_CACHE_KEY);
+      return;
+    }
+    setPendingGeminiRetry(nextState);
+    await AsyncStorage.setItem(GEMINI_RETRY_CACHE_KEY, JSON.stringify(nextState));
+  }, []);
+
+  const handleGeminiRateLimit = useCallback(
+    async (audioRecordId, retryAfterSeconds = 60, attempts = 0) => {
+      const nextRetryAt = Date.now() + retryAfterSeconds * 1000;
+      const expiresAt = Date.now() + GEMINI_RETRY_WINDOW_MS;
+      await persistRetryState({
+        audioRecordId,
+        patientName: patientName.trim(),
+        patientId: patientId.trim(),
+        attempts,
+        nextRetryAt,
+        expiresAt,
+      });
+      Alert.alert(
+        'Busy Right Now',
+        'Your recording could not be sent due to too many concurrent users. Please try again in 60 seconds.'
+      );
+    },
+    [patientId, patientName, persistRetryState]
+  );
 
   const handleStartRecording = useCallback(async () => {
     if (!canStartRecording) {
@@ -194,9 +267,16 @@ const RecordPage = ({navigation}) => {
         });
 
         if (uploadResult.success) {
-          const geminiGenerated = uploadResult.data?.data?.geminiGenerated;
-          const geminiError = uploadResult.data?.data?.geminiError;
+          const payload = uploadResult.data?.data || {};
+          const geminiGenerated = payload.geminiGenerated;
+          const geminiError = payload.geminiError;
+          const geminiErrorCode = payload.geminiErrorCode;
+          const retryAfterSeconds = payload.geminiRetryAfterSeconds || 60;
           if (geminiGenerated === false) {
+            if (geminiErrorCode === 'RATE_LIMIT' && payload.id) {
+              await handleGeminiRateLimit(payload.id, retryAfterSeconds, 0);
+              return;
+            }
             Alert.alert(
               'Uploaded',
               geminiError || 'Recording uploaded, but no Gemini suggestion was generated.'
@@ -214,8 +294,75 @@ const RecordPage = ({navigation}) => {
         setIsUploading(false);
       }
     },
-    [patientName, patientId, handleMissingDataFlow]
+    [patientName, patientId, handleMissingDataFlow, handleGeminiRateLimit]
   );
+
+  const handleRetryGemini = useCallback(async () => {
+    if (!pendingGeminiRetry) {
+      return;
+    }
+    if (Date.now() < pendingGeminiRetry.nextRetryAt) {
+      Alert.alert(
+        'Please wait',
+        `Try again in ${retryCountdown || 60} seconds.`
+      );
+      return;
+    }
+    if (pendingGeminiRetry.attempts >= GEMINI_RETRY_MAX_ATTEMPTS) {
+      await persistRetryState(null);
+      Alert.alert('Please try again later', 'Retry limit reached. Please try again later.');
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const result = await apiService.retryGeminiForAudio(
+        pendingGeminiRetry.audioRecordId
+      );
+      if (result.success) {
+        const payload = result.data || {};
+        if (payload.geminiGenerated) {
+          await persistRetryState(null);
+          await handleMissingDataFlow();
+          return;
+        }
+        if (payload.geminiErrorCode === 'RATE_LIMIT') {
+          const nextAttempts = pendingGeminiRetry.attempts + 1;
+          if (nextAttempts >= GEMINI_RETRY_MAX_ATTEMPTS) {
+            await persistRetryState(null);
+            Alert.alert(
+              'Please try again later',
+              'Retry limit reached. Please try again later.'
+            );
+            return;
+          }
+          await handleGeminiRateLimit(
+            pendingGeminiRetry.audioRecordId,
+            payload.geminiRetryAfterSeconds || 60,
+            nextAttempts
+          );
+          return;
+        }
+        Alert.alert(
+          'Gemini Error',
+          payload.geminiError || 'Gemini processing failed.'
+        );
+        await persistRetryState(null);
+        return;
+      }
+      Alert.alert('Retry Failed', result.error || 'Failed to retry Gemini.');
+    } catch (error) {
+      console.error('Retry Gemini error:', error);
+      Alert.alert('Error', 'Failed to retry Gemini.');
+    } finally {
+      setIsUploading(false);
+    }
+  }, [
+    pendingGeminiRetry,
+    retryCountdown,
+    handleMissingDataFlow,
+    handleGeminiRateLimit,
+    persistRetryState,
+  ]);
 
   const pickPhotoFromLibrary = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -445,7 +592,9 @@ const RecordPage = ({navigation}) => {
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        onScroll={onMainScroll}
+        scrollEventThrottle={16}>
         <View style={styles.contentInner}>
           <View style={styles.iconContainer}>
             <Ionicons 
@@ -477,6 +626,7 @@ const RecordPage = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={patientName}
                   onChangeText={setPatientName}
+                  onFocus={handleMainFocus}
                   editable={!isRecording}
                 />
               </View>
@@ -492,6 +642,7 @@ const RecordPage = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={patientId}
                   onChangeText={setPatientId}
+                  onFocus={handleMainFocus}
                   editable={!isRecording}
                 />
               </View>
@@ -535,6 +686,27 @@ const RecordPage = ({navigation}) => {
               {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
             </Text>
           </TouchableOpacity>
+          {pendingGeminiRetry && (
+            <View style={styles.retryCard}>
+              <Text style={styles.retryTitle}>Gemini is busy</Text>
+              <Text style={styles.retrySubtitle}>
+                {retryCountdown > 0
+                  ? `Retry available in ${retryCountdown}s`
+                  : 'You can retry now.'}
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.retryButton,
+                  (retryCountdown > 0 || isUploading) && styles.retryButtonDisabled,
+                ]}
+                onPress={handleRetryGemini}
+                disabled={retryCountdown > 0 || isUploading}>
+                <Text style={styles.retryButtonText}>
+                  {isUploading ? 'Retrying...' : 'Retry Gemini'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={{height: keyboardHeight}} />
         </View>
       </ScrollView>
@@ -610,7 +782,9 @@ const RecordPage = ({navigation}) => {
             <ScrollView
               ref={modalScrollRef}
               style={styles.modalForm}
-              keyboardShouldPersistTaps="handled">
+              keyboardShouldPersistTaps="handled"
+              onScroll={onModalScroll}
+              scrollEventThrottle={16}>
               <View>
               <Text style={styles.modalSectionTitle}>Demographics</Text>
               {requiredMissingKeys.includes('age') && (
@@ -620,6 +794,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.age}
                     onChangeText={(value) => updateMissingData('age', value)}
+                    onFocus={handleModalFocus}
                     placeholder="Age"
                     keyboardType="number-pad"
                   />
@@ -632,6 +807,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.gender}
                     onChangeText={(value) => updateMissingData('gender', value)}
+                    onFocus={handleModalFocus}
                     placeholder="Gender"
                   />
                 </View>
@@ -643,6 +819,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.occupation}
                     onChangeText={(value) => updateMissingData('occupation', value)}
+                    onFocus={handleModalFocus}
                     placeholder="Occupation"
                   />
                 </View>
@@ -656,6 +833,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.spo2}
                     onChangeText={(value) => updateMissingData('spo2', value)}
+                    onFocus={handleModalFocus}
                     placeholder="SpO2"
                     keyboardType="number-pad"
                   />
@@ -668,6 +846,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.bp}
                     onChangeText={(value) => updateMissingData('bp', value)}
+                    onFocus={handleModalFocus}
                     placeholder="BP"
                   />
                 </View>
@@ -679,6 +858,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.hr}
                     onChangeText={(value) => updateMissingData('hr', value)}
+                    onFocus={handleModalFocus}
                     placeholder="HR"
                     keyboardType="number-pad"
                   />
@@ -691,6 +871,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.rr}
                     onChangeText={(value) => updateMissingData('rr', value)}
+                    onFocus={handleModalFocus}
                     placeholder="RR"
                     keyboardType="number-pad"
                   />
@@ -703,6 +884,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.weight}
                     onChangeText={(value) => updateMissingData('weight', value)}
+                    onFocus={handleModalFocus}
                     placeholder="Weight"
                     keyboardType="decimal-pad"
                   />
@@ -715,6 +897,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.height}
                     onChangeText={(value) => updateMissingData('height', value)}
+                    onFocus={handleModalFocus}
                     placeholder="Height"
                     keyboardType="decimal-pad"
                   />
@@ -727,6 +910,7 @@ const RecordPage = ({navigation}) => {
                     style={styles.modalInput}
                     value={missingData.bmi}
                     onChangeText={(value) => updateMissingData('bmi', value)}
+                    onFocus={handleModalFocus}
                     placeholder="BMI"
                     keyboardType="decimal-pad"
                   />
@@ -755,7 +939,7 @@ const RecordPage = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F7F8FA',
   },
   scrollView: {
     flex: 1,
@@ -804,11 +988,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E6EBF2',
     paddingHorizontal: 12,
     height: 50,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   inputIcon: {
     marginRight: 8,
@@ -820,13 +1009,18 @@ const styles = StyleSheet.create({
   },
   patientInfoContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     width: '100%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
   patientInfoRow: {
     flexDirection: 'row',
@@ -855,11 +1049,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     paddingVertical: 20,
     paddingHorizontal: 40,
-    borderRadius: 16,
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 200,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
   recordButtonActive: {
     backgroundColor: '#FF3B30',
@@ -874,6 +1073,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 12,
   },
+  retryCard: {
+    marginTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  retryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 4,
+  },
+  retrySubtitle: {
+    fontSize: 13,
+    color: '#666666',
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  retryButtonDisabled: {
+    opacity: 0.6,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
@@ -882,14 +1114,24 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 20,
     maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 6,
   },
   photoModalCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 6,
   },
   photoOptionButton: {
     paddingVertical: 12,

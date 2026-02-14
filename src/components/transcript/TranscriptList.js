@@ -23,7 +23,8 @@ const TranscriptList = ({transcripts, onTranscriptPress}) => {
 
 const styles = StyleSheet.create({
   list: {
-    padding: 15,
+    padding: 16,
+    paddingBottom: 24,
   },
 });
 

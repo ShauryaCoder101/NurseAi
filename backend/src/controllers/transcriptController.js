@@ -40,11 +40,11 @@ async function getTranscripts(req, res) {
       const date = hasValidDate ? createdAtDate.toISOString().split('T')[0] : '';
 
       return {
-      id: transcript.id,
+        id: transcript.id,
         title: transcript.title || `${transcript.patient_name || 'Untitled'} - ${titleDate}`,
         date,
         preview: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
-      patientName: transcript.patient_name,
+        patientName: transcript.patient_name,
         patientId: transcript.patient_id,
         content,
         source: transcript.source || 'manual',
@@ -439,6 +439,74 @@ async function followupGeminiSuggestion(req, res) {
   }
 }
 
+// Flag a Gemini suggestion for review
+async function flagGeminiSuggestion(req, res) {
+  try {
+    const userId = req.userId;
+    const {id} = req.params;
+    const {reason} = req.body || {};
+
+    const transcript = await dbHelpers.get(
+      "SELECT * FROM transcripts WHERE id = $1 AND user_uid = $2 AND source = 'gemini'",
+      [id, userId]
+    );
+
+    if (!transcript) {
+      return res.status(404).json({
+        success: false,
+        error: 'Gemini suggestion not found.',
+      });
+    }
+
+    if (transcript.suggestion_completed) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only pending Gemini suggestions can be flagged.',
+      });
+    }
+
+    const insertResult = await dbHelpers.run(
+      `INSERT INTO flagged_suggestions
+        (transcript_id, audio_record_id, user_uid, patient_id, content, reason)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (transcript_id) DO NOTHING`,
+      [
+        transcript.id,
+        transcript.audio_record_id || null,
+        userId,
+        transcript.patient_id || null,
+        transcript.content || '',
+        reason && String(reason).trim().length > 0 ? String(reason).trim() : null,
+      ]
+    );
+
+    const flagged = await dbHelpers.get(
+      `SELECT * FROM flagged_suggestions WHERE transcript_id = $1 AND user_uid = $2`,
+      [transcript.id, userId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        id: flagged?.id || null,
+        transcriptId: transcript.id,
+        audioRecordId: flagged?.audio_record_id || transcript.audio_record_id || null,
+        patientId: flagged?.patient_id || transcript.patient_id || null,
+        userUid: flagged?.user_uid || userId,
+        reason: flagged?.reason || null,
+        flaggedAt: flagged?.flagged_at || null,
+        alreadyFlagged: insertResult.changes === 0,
+      },
+    });
+  } catch (error) {
+    console.error('Flag Gemini suggestion error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 module.exports = {
   getTranscripts,
   getTranscript,
@@ -449,4 +517,5 @@ module.exports = {
   reopenGeminiSuggestion,
   updateGeminiMissingData,
   followupGeminiSuggestion,
+  flagGeminiSuggestion,
 };

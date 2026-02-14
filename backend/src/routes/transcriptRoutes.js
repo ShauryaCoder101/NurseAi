@@ -8,6 +8,7 @@ router.get('/', authenticate, transcriptController.getTranscripts);
 router.get('/gemini-latest', authenticate, transcriptController.getLatestGeminiSuggestion);
 router.get('/gemini-suggestions', authenticate, transcriptController.getGeminiSuggestions);
 router.post('/:id/followup', authenticate, transcriptController.followupGeminiSuggestion);
+router.post('/:id/flag', authenticate, transcriptController.flagGeminiSuggestion);
 router.patch('/:id/missing-data', authenticate, transcriptController.updateGeminiMissingData);
 router.patch('/:id/complete', authenticate, transcriptController.markGeminiSuggestionComplete);
 router.patch('/:id/reopen', authenticate, transcriptController.reopenGeminiSuggestion);

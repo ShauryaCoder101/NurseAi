@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useMemo} from 'react';
+import React, {useState, useEffect, useCallback, useMemo, useRef} from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Pressable,
   Alert,
   TextInput,
+  Modal,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +18,7 @@ import {Swipeable} from 'react-native-gesture-handler';
 import SummaryCard from '../components/dashboard/SummaryCard';
 import PatientTaskCard from '../components/dashboard/PatientTaskCard';
 import apiService from '../services/apiService';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const CURRENT_PATIENT_KEY = '@nurseai_current_patient';
 
@@ -32,6 +34,13 @@ const HomePage = ({navigation}) => {
   const [expandedSuggestionId, setExpandedSuggestionId] = useState(null);
   const [askAiInputs, setAskAiInputs] = useState({});
   const [askAiLoading, setAskAiLoading] = useState({});
+  const [flaggingSuggestions, setFlaggingSuggestions] = useState({});
+  const [flaggedSuggestions, setFlaggedSuggestions] = useState({});
+  const [flagModalVisible, setFlagModalVisible] = useState(false);
+  const [flagReason, setFlagReason] = useState('');
+  const [flagTarget, setFlagTarget] = useState(null);
+  const scrollViewRef = useRef(null);
+  const {onScroll, handleFocus, keyboardHeight} = useKeyboardCentering(scrollViewRef);
 
   // Load current patient info from storage
   useEffect(() => {
@@ -237,6 +246,42 @@ const HomePage = ({navigation}) => {
     [askAiInputs]
   );
 
+  const handleFlagSuggestion = useCallback(async (item) => {
+    setFlagTarget(item);
+    setFlagReason('');
+    setFlagModalVisible(true);
+  }, []);
+
+  const submitFlagSuggestion = useCallback(async () => {
+    if (!flagTarget) {
+      setFlagModalVisible(false);
+      return;
+    }
+    if (flaggingSuggestions[flagTarget.id]) {
+      return;
+    }
+    if (!flagReason.trim()) {
+      Alert.alert('Flag for review', 'Please add a reason for flagging.');
+      return;
+    }
+    setFlaggingSuggestions((prev) => ({...prev, [flagTarget.id]: true}));
+    const result = await apiService.flagGeminiSuggestion(flagTarget.id, flagReason.trim());
+    if (result.success) {
+      setFlaggedSuggestions((prev) => ({...prev, [flagTarget.id]: true}));
+      setFlagModalVisible(false);
+      Alert.alert('Flagged', 'Suggestion flagged for review.');
+    } else {
+      Alert.alert('Flag for review', result.error || 'Failed to flag suggestion.');
+    }
+    setFlaggingSuggestions((prev) => ({...prev, [flagTarget.id]: false}));
+  }, [flagTarget, flagReason, flaggingSuggestions]);
+
+  const closeFlagModal = useCallback(() => {
+    setFlagModalVisible(false);
+    setFlagReason('');
+    setFlagTarget(null);
+  }, []);
+
   const toggleSuggestion = useCallback((id) => {
     setExpandedSuggestionId((prev) => (prev === id ? null : id));
   }, []);
@@ -287,9 +332,23 @@ const HomePage = ({navigation}) => {
                 accessibilityRole="button"
                 accessibilityLabel="Toggle Gemini suggestion"
                 accessibilityHint="Tap to expand or collapse the suggestion text">
-                <Text style={styles.geminiSubtitle}>
-                  {item.patientName || 'Unknown Patient'} (ID: {item.patientId || 'N/A'})
-                </Text>
+                <View style={styles.geminiCardHeader}>
+                  <Text style={styles.geminiSubtitle}>
+                    {item.patientName || 'Unknown Patient'} (ID: {item.patientId || 'N/A'})
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.flagButton,
+                      (flaggingSuggestions[item.id] || flaggedSuggestions[item.id]) &&
+                        styles.flagButtonDisabled,
+                    ]}
+                    onPress={() => handleFlagSuggestion(item)}
+                    disabled={flaggingSuggestions[item.id] || flaggedSuggestions[item.id]}>
+                    <Text style={styles.flagButtonText}>
+                      {flaggedSuggestions[item.id] ? 'Flagged' : 'Flag for review'}
+                    </Text>
+                  </Pressable>
+                </View>
                 <Text
                   style={styles.geminiContent}
                   numberOfLines={isExpanded ? undefined : 5}>
@@ -307,6 +366,7 @@ const HomePage = ({navigation}) => {
                       placeholderTextColor="#999999"
                       value={askAiInputs[item.id] || ''}
                       onChangeText={(value) => handleAskAiChange(item.id, value)}
+                      onFocus={handleFocus}
                       editable={!askAiLoading[item.id]}
                       multiline
                     />
@@ -336,8 +396,11 @@ const HomePage = ({navigation}) => {
     handleCompleteSuggestion,
     handleAskAiChange,
     handleAskAiSubmit,
+    handleFlagSuggestion,
     askAiInputs,
     askAiLoading,
+    flaggingSuggestions,
+    flaggedSuggestions,
     renderLeftActions,
     expandedSuggestionId,
     toggleSuggestion,
@@ -354,21 +417,30 @@ const HomePage = ({navigation}) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight ? {paddingBottom: keyboardHeight + 24} : null,
+        ]}
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="document-text" size={32} color="#007AFF" />
-          </View>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>NurseAI</Text>
-            <Text style={styles.headerSubtitle}>Clinical Assistant</Text>
+        }
+        onScroll={onScroll}
+        scrollEventThrottle={16}>
+        {/* Logo Container */}
+        <View style={styles.logoCard}>
+          <View style={styles.header}>
+            <View style={styles.headerIcon}>
+              <Ionicons name="document-text" size={32} color="#007AFF" />
+            </View>
+            <View style={styles.headerText}>
+              <Text style={styles.headerTitle}>NurseAI</Text>
+              <Text style={styles.headerSubtitle}>Clinical Assistant</Text>
+            </View>
           </View>
         </View>
 
@@ -380,6 +452,39 @@ const HomePage = ({navigation}) => {
 
         {/* Patient Tasks Section removed */}
       </ScrollView>
+      <Modal
+        visible={flagModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFlagModal}>
+        <View style={styles.flagModalOverlay}>
+          <View style={styles.flagModalCard}>
+            <Text style={styles.flagModalTitle}>Flag for review</Text>
+            <Text style={styles.flagModalSubtitle}>
+              Sorry for the inconvenience, but please elaborate the reason for flagging.
+            </Text>
+            <TextInput
+              style={styles.flagModalInput}
+              placeholder="Type your reason here..."
+              placeholderTextColor="#999999"
+              value={flagReason}
+              onChangeText={setFlagReason}
+              onFocus={handleFocus}
+              multiline
+            />
+            <View style={styles.flagModalActions}>
+              <Pressable style={styles.flagModalCancel} onPress={closeFlagModal}>
+                <Text style={styles.flagModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.flagModalSubmit}
+                onPress={submitFlagSuggestion}>
+                <Text style={styles.flagModalSubmitText}>Submit</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -387,22 +492,30 @@ const HomePage = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  logoCard: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF1F6',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: '#FFFFFF',
   },
   headerIcon: {
     width: 56,
@@ -428,9 +541,8 @@ const styles = StyleSheet.create({
   },
   summaryContainer: {
     flexDirection: 'row',
-    padding: 12,
-    paddingTop: 16,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
   tasksSection: {
     backgroundColor: '#FFFFFF',
@@ -479,6 +591,92 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 12,
     color: '#999999',
+  },
+  geminiCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  flagButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: -10,
+  },
+  flagButtonDisabled: {
+    opacity: 0.6,
+  },
+  flagButtonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  flagModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  flagModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+  },
+  flagModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  flagModalSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 12,
+  },
+  flagModalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 90,
+    fontSize: 14,
+    color: '#333333',
+    backgroundColor: '#FAFAFA',
+  },
+  flagModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  flagModalCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+  flagModalCancelText: {
+    color: '#666666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  flagModalSubmit: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  flagModalSubmitText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   askAiContainer: {
     marginTop: 12,

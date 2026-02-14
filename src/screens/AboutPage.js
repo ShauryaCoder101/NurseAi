@@ -124,7 +124,7 @@ const AboutPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F7F8FA',
   },
   scrollView: {
     flex: 1,
@@ -140,7 +140,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   section: {
-    marginBottom: 25,
+    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
   stepTitle: {
     fontSize: 18,
@@ -155,8 +165,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#eee',
-    marginVertical: 30,
+    backgroundColor: '#E6EBF2',
+    marginVertical: 24,
   },
   aboutText: {
     fontSize: 16,
@@ -180,9 +190,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#FF3B30',
+    backgroundColor: '#FFFFFF',
   },
   logoutText: {
     fontSize: 16,

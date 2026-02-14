@@ -95,6 +95,8 @@ async function uploadAudio(req, res) {
     let geminiText = null;
     let transcriptId = null;
     let geminiErrorMessage = null;
+    let geminiErrorCode = null;
+    let geminiRetryAfterSeconds = null;
     try {
       if (!patientId) {
         geminiErrorMessage = 'Patient ID is required for Gemini suggestions.';
@@ -131,6 +133,15 @@ async function uploadAudio(req, res) {
     } catch (geminiError) {
       console.error('Gemini processing error:', geminiError);
       geminiErrorMessage = geminiError?.message || 'Gemini processing failed.';
+      if (geminiError?.code === 'RATE_LIMIT') {
+        geminiErrorCode = 'RATE_LIMIT';
+        const retryAfterMs = Number(geminiError?.retryAfterMs || 0);
+        const fallbackSeconds = 60;
+        const derivedSeconds = Math.ceil(retryAfterMs / 1000);
+        geminiRetryAfterSeconds = Math.max(fallbackSeconds, derivedSeconds || fallbackSeconds);
+        geminiErrorMessage =
+          'Too many concurrent users. Please try again in 60 seconds.';
+      }
     }
 
     res.json({
@@ -150,6 +161,8 @@ async function uploadAudio(req, res) {
         patientId: patientId || null,
         geminiGenerated: Boolean(geminiText),
         geminiError: geminiErrorMessage,
+        geminiErrorCode,
+        geminiRetryAfterSeconds,
         transcriptId,
       },
     });
@@ -162,6 +175,121 @@ async function uploadAudio(req, res) {
   }
 }
 
+async function retryGeminiForAudioRecord(req, res) {
+  try {
+    const userUid = req.userId;
+    const {id} = req.params;
+
+    const audioRecord = await dbHelpers.get(
+      'SELECT * FROM audio_records WHERE id = $1 AND user_uid = $2',
+      [id, userUid]
+    );
+
+    if (!audioRecord) {
+      return res.status(404).json({
+        success: false,
+        error: 'Audio record not found.',
+      });
+    }
+
+    const existingTranscript = await dbHelpers.get(
+      `SELECT id FROM transcripts
+       WHERE audio_record_id = $1 AND user_uid = $2 AND source = 'gemini'
+       ORDER BY created_at DESC LIMIT 1`,
+      [id, userUid]
+    );
+
+    if (existingTranscript) {
+      return res.json({
+        success: true,
+        data: {
+          audioRecordId: id,
+          transcriptId: existingTranscript.id,
+          geminiGenerated: true,
+          alreadyGenerated: true,
+        },
+      });
+    }
+
+    if (!audioRecord.patient_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Patient ID is required for Gemini suggestions.',
+      });
+    }
+
+    let geminiText = null;
+    let transcriptId = null;
+    let geminiErrorMessage = null;
+    let geminiErrorCode = null;
+    let geminiRetryAfterSeconds = null;
+
+    try {
+      geminiText = await generateGeminiSuggestion({
+        audioPath: audioRecord.file_path,
+        mimeType: audioRecord.mime_type,
+        patientId: audioRecord.patient_id,
+      });
+      if (!geminiText || !geminiText.trim()) {
+        geminiText = null;
+        geminiErrorMessage = 'Gemini returned an empty response.';
+      }
+
+      if (geminiText) {
+        const transcriptResult = await dbHelpers.run(
+          `INSERT INTO transcripts
+            (id, user_uid, title, content, patient_name, patient_id, source, audio_record_id, suggestion_completed, created_at, updated_at)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW())
+           RETURNING id`,
+          [
+            userUid,
+            audioRecord.patient_id
+              ? `Clinical Decision Support - ${audioRecord.patient_id}`
+              : 'Clinical Decision Support',
+            geminiText,
+            audioRecord.patient_name || null,
+            audioRecord.patient_id || null,
+            'gemini',
+            audioRecord.id,
+          ]
+        );
+        transcriptId = transcriptResult.lastID;
+      }
+    } catch (geminiError) {
+      console.error('Gemini retry error:', geminiError);
+      geminiErrorMessage = geminiError?.message || 'Gemini processing failed.';
+      if (geminiError?.code === 'RATE_LIMIT') {
+        geminiErrorCode = 'RATE_LIMIT';
+        const retryAfterMs = Number(geminiError?.retryAfterMs || 0);
+        const fallbackSeconds = 60;
+        const derivedSeconds = Math.ceil(retryAfterMs / 1000);
+        geminiRetryAfterSeconds = Math.max(fallbackSeconds, derivedSeconds || fallbackSeconds);
+        geminiErrorMessage =
+          'Too many concurrent users. Please try again in 60 seconds.';
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        audioRecordId: audioRecord.id,
+        transcriptId,
+        geminiGenerated: Boolean(geminiText),
+        geminiError: geminiErrorMessage,
+        geminiErrorCode,
+        geminiRetryAfterSeconds,
+      },
+    });
+  } catch (error) {
+    console.error('Retry Gemini error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 module.exports = {
   uploadAudio,
+  retryGeminiForAudioRecord,
 };

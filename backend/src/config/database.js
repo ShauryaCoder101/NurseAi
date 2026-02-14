@@ -233,6 +233,35 @@ async function initializeDatabase() {
       )
     `);
 
+    // Flagged Gemini suggestions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS flagged_suggestions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        transcript_id UUID NOT NULL UNIQUE,
+        audio_record_id UUID,
+        user_uid VARCHAR(16) NOT NULL,
+        patient_id VARCHAR(255),
+        content TEXT NOT NULL,
+        reason TEXT,
+        flagged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE CASCADE,
+        FOREIGN KEY (audio_record_id) REFERENCES audio_records(id) ON DELETE SET NULL,
+        FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
+      )
+    `);
+
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'flagged_suggestions' AND column_name = 'reason'
+        ) THEN
+          ALTER TABLE flagged_suggestions ADD COLUMN reason TEXT;
+        END IF;
+      END $$;
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)

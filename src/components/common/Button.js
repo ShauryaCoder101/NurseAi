@@ -1,5 +1,6 @@
 import React from 'react';
 import {TouchableOpacity, Text, StyleSheet} from 'react-native';
+import colors from '../../styles/colors';
 
 const Button = ({title, onPress, variant = 'primary', style}) => {
   const buttonStyle = variant === 'primary' ? styles.primaryButton : styles.secondaryButton;
@@ -17,28 +18,35 @@ const Button = ({title, onPress, variant = 'primary', style}) => {
 
 const styles = StyleSheet.create({
   primaryButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
     alignItems: 'center',
+    minHeight: 48,
+    shadowColor: colors.shadow,
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   secondaryButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#007AFF',
+    backgroundColor: colors.backgroundLight,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.primary,
     alignItems: 'center',
+    minHeight: 48,
   },
   primaryText: {
-    color: '#fff',
+    color: colors.textInverse,
     fontSize: 16,
     fontWeight: '600',
   },
   secondaryText: {
-    color: '#007AFF',
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },

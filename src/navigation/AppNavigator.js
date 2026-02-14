@@ -32,7 +32,7 @@ const MainTabs = () => {
   }), []);
 
   return (
-    <Tab.Navigator screenOptions={tabBarOptions}>
+    <Tab.Navigator screenOptions={{...tabBarOptions, headerShown: false}}>
       <Tab.Screen 
         name="Dashboard" 
         component={HomePage}

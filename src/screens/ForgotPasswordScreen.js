@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import authService from '../services/authService';
+import useKeyboardCentering from '../hooks/useKeyboardCentering';
 
 const ForgotPasswordScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
@@ -25,6 +26,7 @@ const ForgotPasswordScreen = ({navigation}) => {
   const [step, setStep] = useState('request');
   const [loading, setLoading] = useState(false);
   const scrollViewRef = useRef(null);
+  const {onScroll, handleFocus} = useKeyboardCentering(scrollViewRef);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -92,7 +94,9 @@ const ForgotPasswordScreen = ({navigation}) => {
         <ScrollView
           ref={scrollViewRef}
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={16}>
           <View style={styles.contentInner}>
             <View style={styles.header}>
               <View style={styles.iconContainer}>
@@ -115,6 +119,7 @@ const ForgotPasswordScreen = ({navigation}) => {
                   placeholderTextColor="#999999"
                   value={email}
                   onChangeText={setEmail}
+                  onFocus={handleFocus}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -132,6 +137,7 @@ const ForgotPasswordScreen = ({navigation}) => {
                       placeholderTextColor="#999999"
                       value={otp}
                       onChangeText={setOtp}
+                      onFocus={handleFocus}
                       keyboardType="number-pad"
                     />
                   </View>
@@ -144,6 +150,7 @@ const ForgotPasswordScreen = ({navigation}) => {
                       placeholderTextColor="#999999"
                       value={newPassword}
                       onChangeText={setNewPassword}
+                      onFocus={handleFocus}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
                     />
@@ -166,6 +173,7 @@ const ForgotPasswordScreen = ({navigation}) => {
                       placeholderTextColor="#999999"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
+                      onFocus={handleFocus}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
                     />
@@ -212,7 +220,7 @@ const ForgotPasswordScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F7F8FA',
   },
   keyboardView: {
     flex: 1,
@@ -224,6 +232,16 @@ const styles = StyleSheet.create({
   },
   contentInner: {
     width: '100%',
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   header: {
     alignItems: 'center',
@@ -233,10 +251,15 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#E5F2FF',
+    backgroundColor: '#E8F1FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   title: {
     fontSize: 28,
@@ -255,11 +278,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F3F5F9',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
     height: 52,
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
   },
   inputIcon: {
     marginRight: 12,
@@ -279,6 +304,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,

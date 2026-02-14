@@ -2,6 +2,7 @@ import React, {memo} from 'react';
 import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import Badge from '../common/Badge';
+import colors from '../../styles/colors';
 
 const PatientTaskCard = memo(({task, onPress}) => {
   const {patientName, taskDescription, scheduledTime, emergencyLevel, status} = task;
@@ -12,7 +13,7 @@ const PatientTaskCard = memo(({task, onPress}) => {
       onPress={onPress}
       activeOpacity={0.7}>
       <View style={styles.iconContainer}>
-        <Ionicons name="pulse" size={24} color="#007AFF" />
+        <Ionicons name="pulse" size={24} color={colors.primary} />
       </View>
       
       <View style={styles.content}>
@@ -37,22 +38,24 @@ const PatientTaskCard = memo(({task, onPress}) => {
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    shadowColor: colors.shadow,
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#E5F2FF',
+    backgroundColor: '#E8F1FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -62,18 +65,18 @@ const styles = StyleSheet.create({
   },
   patientName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
+    fontWeight: '700',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   taskDescription: {
     fontSize: 14,
-    color: '#666666',
+    color: colors.textSecondary,
     marginBottom: 4,
   },
   scheduledTime: {
     fontSize: 12,
-    color: '#999999',
+    color: colors.textTertiary,
   },
   badgesContainer: {
     alignItems: 'flex-end',

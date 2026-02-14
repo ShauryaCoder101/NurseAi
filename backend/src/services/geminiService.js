@@ -13,12 +13,66 @@ const GEMINI_LOG_ENABLED =
   process.env.NODE_ENV !== 'production';
 const GEMINI_LOG_INCLUDE_RAW = process.env.GEMINI_LOG_INCLUDE_RAW === 'true';
 const GEMINI_MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS || 2000);
+const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 3);
+const GEMINI_BACKOFF_MS = Number(process.env.GEMINI_BACKOFF_MS || 2000);
+const GEMINI_MAX_BACKOFF_MS = Number(process.env.GEMINI_MAX_BACKOFF_MS || 15000);
 
 let cachedModelName = null;
 let geminiQueue = Promise.resolve();
 let lastGeminiRequestAt = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+class GeminiRateLimitError extends Error {
+  constructor(message, retryAfterMs) {
+    super(message);
+    this.name = 'GeminiRateLimitError';
+    this.code = 'RATE_LIMIT';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+const parseRetryAfterMs = (response) => {
+  const header = response?.headers?.get?.('retry-after');
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) {
+    return Math.max(0, seconds * 1000);
+  }
+  const dateMs = Date.parse(header);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(0, dateMs - Date.now());
+  }
+  return null;
+};
+
+const fetchWithRetry = async (endpoint, body) => {
+  let attempt = 0;
+  while (true) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      return response;
+    }
+
+    const shouldRetry = response.status === 429 || response.status === 503;
+    if (!shouldRetry || attempt >= GEMINI_MAX_RETRIES) {
+      return response;
+    }
+
+    const retryAfterMs = parseRetryAfterMs(response);
+    const backoffMs = retryAfterMs ?? Math.min(
+      GEMINI_BACKOFF_MS * Math.pow(2, attempt),
+      GEMINI_MAX_BACKOFF_MS
+    );
+    attempt += 1;
+    await sleep(backoffMs);
+  }
+};
 
 const runGeminiThrottled = (task) => {
   const execute = async () => {
@@ -192,14 +246,13 @@ async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
   }
 
   const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  let response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
+  let response = await fetchWithRetry(endpoint, body);
 
   if (!response.ok) {
     const errorText = await response.text();
+    if (response.status === 429) {
+      throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+    }
     if (response.status === 404) {
       // Try to discover an available model and retry once.
       const models = await listModels();
@@ -207,13 +260,12 @@ async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
       if (fallback && fallback !== modelName) {
         cachedModelName = fallback;
         const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
-        response = await fetch(retryEndpoint, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body),
-        });
+        response = await fetchWithRetry(retryEndpoint, body);
         if (!response.ok) {
           const retryError = await response.text();
+          if (response.status === 429) {
+            throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+          }
           throw new Error(`Gemini API error: ${retryError}`);
         }
       } else {
@@ -298,27 +350,25 @@ async function generateGeminiFollowup({previousResponse, followupText, patientId
   }
 
   const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  let response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
+  let response = await fetchWithRetry(endpoint, body);
 
   if (!response.ok) {
     const errorText = await response.text();
+    if (response.status === 429) {
+      throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+    }
     if (response.status === 404) {
       const models = await listModels();
       const fallback = pickModelFromList(models);
       if (fallback && fallback !== modelName) {
         cachedModelName = fallback;
         const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
-        response = await fetch(retryEndpoint, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(body),
-        });
+        response = await fetchWithRetry(retryEndpoint, body);
         if (!response.ok) {
           const retryError = await response.text();
+          if (response.status === 429) {
+            throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+          }
           throw new Error(`Gemini API error: ${retryError}`);
         }
       } else {

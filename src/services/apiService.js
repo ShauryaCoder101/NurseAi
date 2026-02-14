@@ -323,6 +323,18 @@ export const apiService = {
     return result;
   },
 
+  flagGeminiSuggestion: async (id, reason = '') => {
+    const result = await apiCall(`/transcripts/${id}/flag`, {
+      method: 'POST',
+      body: JSON.stringify({reason}),
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
   // Get transcript by ID
   getTranscript: async (id) => {
     const result = await apiCall(`/transcripts/${id}`);
@@ -412,7 +424,7 @@ export const apiService = {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        return {success: false, error: data.error || 'Upload failed'};
+        return {success: false, status: response.status, error: data.error || 'Upload failed', data};
       }
 
       return {success: true, data};
@@ -420,6 +432,17 @@ export const apiService = {
       console.error('Audio upload error:', error);
       return {success: false, error: error.message};
     }
+  },
+
+  retryGeminiForAudio: async (audioRecordId) => {
+    const result = await apiCall(`/audio/${audioRecordId}/retry-gemini`, {
+      method: 'POST',
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
   },
 
   // Get all transcripts (history)
