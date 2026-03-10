@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const {dbHelpers} = require('../config/database');
 const {generateGeminiSuggestion} = require('../services/geminiService');
+const {uploadAudioFile, isStorageConfigured} = require('../services/supabaseStorage');
 
 const AUDIO_UPLOAD_DIR = path.join(__dirname, '../../uploads/audio');
 
@@ -35,6 +36,15 @@ async function uploadAudio(req, res) {
       return res.status(400).json({
         success: false,
         error: 'No audio file uploaded.',
+      });
+    }
+
+    console.log(`Audio received: name=${audioFile.originalname}, size=${audioFile.size}, mime=${audioFile.mimetype}`);
+
+    if (!audioFile.size || audioFile.size === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Audio file is empty (0 bytes). Recording may have failed on the device.',
       });
     }
 
@@ -91,6 +101,29 @@ async function uploadAudio(req, res) {
         photoMime,
       ]
     );
+
+    let fileUrl = null;
+    let storagePath = null;
+    if (isStorageConfigured()) {
+      try {
+        const uploadResult = await uploadAudioFile({
+          filePath,
+          fileName,
+          recordId: result.lastID,
+          mimeType,
+        });
+        if (uploadResult) {
+          fileUrl = uploadResult.publicUrl;
+          storagePath = uploadResult.storagePath;
+          await dbHelpers.run(
+            'UPDATE audio_records SET file_url = $1, storage_path = $2 WHERE id = $3',
+            [fileUrl, storagePath, result.lastID]
+          );
+        }
+      } catch (uploadError) {
+        console.error('Supabase audio upload failed:', uploadError);
+      }
+    }
 
     let geminiText = null;
     let transcriptId = null;
@@ -150,6 +183,8 @@ async function uploadAudio(req, res) {
       data: {
         id: result.lastID,
         filePath,
+        fileUrl,
+        storagePath,
         fileName,
         fileSize,
         mimeType,

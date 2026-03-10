@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>NurseAI - Model Benchmark</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fa;
+        --card: #ffffff;
+        --border: #e5e7eb;
+        --text: #111827;
+        --muted: #6b7280;
+        --primary: #0f5fff;
+        --danger: #dc2626;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        background: var(--card);
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+      }
+      header h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      main {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 24px 20px 40px;
+      }
+      .app-shell {
+        display: grid;
+        grid-template-columns: 240px 280px 1fr 1fr;
+        gap: 16px;
+        align-items: stretch;
+      }
+      .audiobar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+        height: calc(100vh - 160px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .audiobar audio {
+        width: 100%;
+      }
+      .sidebar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+        height: calc(100vh - 160px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .rightbar {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+        height: calc(100vh - 160px);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .rightbar textarea {
+        flex: 1;
+        min-height: 0;
+        resize: none;
+      }
+      .sidebar h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      .sidebar-search {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .sidebar-search button {
+        padding: 8px 12px;
+      }
+      .suggestion-list {
+        overflow-y: auto;
+        padding-right: 4px;
+        display: grid;
+        gap: 10px;
+      }
+      .suggestion-item {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        cursor: pointer;
+        background: #f9fafb;
+      }
+      .suggestion-item.active {
+        border-color: var(--primary);
+        background: #eef2ff;
+      }
+      .suggestion-item.flagged {
+        border-color: #fecaca;
+        background: #fef2f2;
+        color: var(--danger);
+      }
+      .suggestion-item small {
+        color: var(--muted);
+      }
+      .main-content {
+        display: grid;
+        gap: 16px;
+      }
+      .scoreboard {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .score-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+      .score-card strong {
+        display: block;
+        font-size: 16px;
+      }
+      .score-card span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .section-title {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      input, select, textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        font-size: 14px;
+      }
+      textarea {
+        min-height: 140px;
+        resize: vertical;
+      }
+      button {
+        padding: 10px 16px;
+        border-radius: 10px;
+        border: none;
+        background: var(--primary);
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #eef2ff;
+        color: #1f2a5a;
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #fef2f2;
+        color: var(--danger);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .results {
+        display: grid;
+        gap: 12px;
+      }
+      .result-card {
+        background: #f9fafb;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .error {
+        color: var(--danger);
+        font-weight: 600;
+        font-size: 12px;
+      }
+      .notice {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>NurseAI Model Benchmark</h1>
+      <p>
+        Company use only • Evaluate Gemini suggestions across Gemini 3, Gemini 3 Fast, and Med Gemma 1.5‑4B.
+      </p>
+    </header>
+    <main>
+      <div id="loginView" class="card">
+        <div class="section-title">Company Login</div>
+        <div class="row">
+          <div>
+            <label for="emailInput">Company email</label>
+            <input id="emailInput" type="email" placeholder="name@nurseai.in" />
+          </div>
+          <div>
+            <label for="passwordInput">Company password</label>
+            <input id="passwordInput" type="password" placeholder="Enter benchmark password" />
+          </div>
+        </div>
+        <div class="actions">
+          <button id="loginButton">Login</button>
+          <button id="clearToken" class="secondary">Clear password</button>
+        </div>
+        <div class="notice" id="tokenStatus">Password is stored locally on this device only.</div>
+      </div>
+
+      <div id="appView" class="app-shell hidden">
+        <aside class="audiobar">
+          <div class="section-title">Audio Player</div>
+          <audio id="audioPlayer" controls preload="none"></audio>
+          <div class="notice" id="audioMeta">Select a recording to play.</div>
+        </aside>
+
+        <aside class="sidebar">
+          <h3>Audio Records</h3>
+          <div class="sidebar-search">
+            <input id="searchInput" type="text" placeholder="Search by patient, ID, or file" />
+            <button id="searchButton" class="secondary">Search</button>
+          </div>
+          <div class="suggestion-list" id="suggestionList"></div>
+        </aside>
+
+        <section class="main-content">
+          <div class="scoreboard" id="scoreboard"></div>
+
+          <div class="card">
+            <div class="section-title">Selected Audio</div>
+            <textarea id="suggestionPreview" readonly></textarea>
+            <div class="actions">
+              <button id="refreshSuggestions" class="secondary">Refresh list</button>
+              <button id="runBenchmark">Run benchmark</button>
+            </div>
+            <div class="notice">
+              Flagged recordings are highlighted in red.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section-title">Benchmark Results</div>
+            <div id="results" class="results"></div>
+          </div>
+        </section>
+
+        <aside class="rightbar">
+          <div class="section-title">Benchmark Prompt</div>
+          <textarea id="promptInput" rows="10" placeholder="Edit prompt for benchmarking only" readonly></textarea>
+          <div class="actions">
+            <button id="editPrompt" class="secondary">Edit</button>
+            <button id="savePrompt">Save</button>
+          </div>
+          <div class="notice">Applies only to benchmark runs (does not change app prompt).</div>
+        </aside>
+      </div>
+    </main>
+
+    <script src="./benchmark.js" defer></script>
+  </body>
+</html>

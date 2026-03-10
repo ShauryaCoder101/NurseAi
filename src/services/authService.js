@@ -330,6 +330,16 @@ export const authService = {
       return null;
     }
   },
+
+  // Update stored user data
+  setUserData: async (userData) => {
+    try {
+      if (!userData) return;
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
+    } catch (error) {
+      // Ignore storage errors silently
+    }
+  },
 };
 
 export default authService;

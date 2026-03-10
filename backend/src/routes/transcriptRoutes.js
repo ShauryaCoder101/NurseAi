@@ -7,6 +7,7 @@ const {authenticate} = require('../middleware/auth');
 router.get('/', authenticate, transcriptController.getTranscripts);
 router.get('/gemini-latest', authenticate, transcriptController.getLatestGeminiSuggestion);
 router.get('/gemini-suggestions', authenticate, transcriptController.getGeminiSuggestions);
+router.post('/proforma', authenticate, transcriptController.generateProforma);
 router.post('/:id/followup', authenticate, transcriptController.followupGeminiSuggestion);
 router.post('/:id/flag', authenticate, transcriptController.flagGeminiSuggestion);
 router.patch('/:id/missing-data', authenticate, transcriptController.updateGeminiMissingData);

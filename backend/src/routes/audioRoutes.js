@@ -31,9 +31,15 @@ const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     if (file.fieldname === 'audio') {
-      if (file.mimetype && file.mimetype.startsWith('audio/')) {
+      const mime = file.mimetype || '';
+      const name = (file.originalname || '').toLowerCase();
+      const isAudioMime = mime.startsWith('audio/');
+      const isOctetStream = mime === 'application/octet-stream';
+      const hasAudioExt = /\.(m4a|mp4|mp3|wav|aac|3gp|3gpp|caf|ogg|webm)$/.test(name);
+      if (isAudioMime || (isOctetStream && hasAudioExt)) {
         return cb(null, true);
       }
+      console.warn(`Rejected audio upload: mime=${mime}, name=${name}`);
       return cb(new Error('Invalid audio file type'), false);
     }
     if (file.fieldname === 'photo') {

@@ -2,14 +2,15 @@
 // Optimized with caching and error handling
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Default to the public API domain for this setup.
-// Override with EXPO_PUBLIC_API_URL if you need a different endpoint.
-const DEV_API_URL = 'https://api.nurseai.in/api';
+// Default to local backend in dev; allow override via EXPO_PUBLIC_API_URL.
+const DEV_API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  'http://172.20.10.2:3000/api';
 
 const PROD_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   'https://api.nurseai.in/api';
-const API_BASE_URL = __DEV__ 
+const API_BASE_URL = __DEV__
   ? DEV_API_URL
   : PROD_API_URL; // Production URL
 
@@ -210,6 +211,27 @@ const unwrapApiData = (result) => {
 };
 
 export const apiService = {
+  getConsentStatus: async () => {
+    const result = await apiCall('/auth/consent');
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  acceptConsent: async () => {
+    const result = await apiCall('/auth/consent', {
+      method: 'POST',
+      body: JSON.stringify({accepted: true}),
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
   // Get dashboard summary (pending and done counts)
   getDashboardSummary: async () => {
     const cacheKey = 'dashboard-summary';
@@ -323,6 +345,18 @@ export const apiService = {
     return result;
   },
 
+  generateProforma: async (symptoms) => {
+    const result = await apiCall('/transcripts/proforma', {
+      method: 'POST',
+      body: JSON.stringify({symptoms}),
+    });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
   flagGeminiSuggestion: async (id, reason = '') => {
     const result = await apiCall(`/transcripts/${id}/flag`, {
       method: 'POST',
@@ -382,10 +416,28 @@ export const apiService = {
 
       const formData = new FormData();
       const filename = uri.split('/').pop() || 'recording.m4a';
-      const fileType = filename.endsWith('.m4a') ? 'audio/m4a' : 'audio/mp4';
+      const extension = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const audioTypeMap = {
+        m4a: 'audio/mp4',
+        mp4: 'audio/mp4',
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        caf: 'audio/x-caf',
+        aac: 'audio/aac',
+        '3gp': 'audio/3gpp',
+        '3gpp': 'audio/3gpp',
+      };
+      const fileType = audioTypeMap[extension] || 'audio/mp4';
+
+      const normalizedUri =
+        uri.startsWith('file://') || uri.startsWith('content://')
+          ? uri
+          : `file://${uri}`;
+
+      console.log(`Audio upload: uri=${normalizedUri}, name=${filename}, type=${fileType}`);
 
       formData.append('audio', {
-        uri,
+        uri: normalizedUri,
         name: filename,
         type: fileType,
       });

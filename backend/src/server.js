@@ -12,6 +12,7 @@ const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const transcriptRoutes = require('./routes/transcriptRoutes');
 const audioRoutes = require('./routes/audioRoutes');
+const benchmarkRoutes = require('./routes/benchmarkRoutes');
 
 // Initialize Express app
 const app = express();
@@ -72,6 +73,7 @@ app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
 if (!isProduction) {
   app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 }
+app.use('/benchmark', express.static(path.join(__dirname, 'public/benchmark')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -84,6 +86,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/transcripts', transcriptRoutes);
 app.use('/api/audio', audioRoutes);
+app.use('/api/benchmark', benchmarkRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -1,7 +1,7 @@
 // Transcript Controller
 const {v4: uuidv4} = require('uuid');
 const {dbHelpers} = require('../config/database');
-const {generateGeminiFollowup} = require('../services/geminiService');
+const {generateGeminiFollowup, generateBenchmarkResponse} = require('../services/geminiService');
 
 // Get all transcripts
 async function getTranscripts(req, res) {
@@ -439,6 +439,44 @@ async function followupGeminiSuggestion(req, res) {
   }
 }
 
+async function generateProforma(req, res) {
+  try {
+    const {symptoms} = req.body || {};
+    const trimmed = String(symptoms || '').trim();
+    if (!trimmed) {
+      return res.status(400).json({
+        success: false,
+        error: 'Symptoms are required.',
+      });
+    }
+
+    const prompt =
+      'create a medical proforma based on the symptoms sent, the proforma should not be like a form it should be more like a conversation between a nurse and a patient. the proforma should have questions based on the symptoms that the patient has which can lead to the diagonosis' +
+      `\n\nSymptoms: ${trimmed}`;
+
+    const content = await generateBenchmarkResponse({promptText: prompt});
+    if (!content || !content.trim()) {
+      return res.status(502).json({
+        success: false,
+        error: 'Gemini returned an empty response.',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        content: content.trim(),
+      },
+    });
+  } catch (error) {
+    console.error('Generate proforma error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 // Flag a Gemini suggestion for review
 async function flagGeminiSuggestion(req, res) {
   try {
@@ -518,4 +556,5 @@ module.exports = {
   updateGeminiMissingData,
   followupGeminiSuggestion,
   flagGeminiSuggestion,
+  generateProforma,
 };

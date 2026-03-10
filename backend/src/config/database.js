@@ -95,6 +95,8 @@ async function initializeDatabase() {
         phone_number VARCHAR(20) NOT NULL,
         password VARCHAR(255) NOT NULL,
         is_verified BOOLEAN DEFAULT FALSE,
+        has_consented BOOLEAN DEFAULT FALSE,
+        consented_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -120,6 +122,24 @@ async function initializeDatabase() {
           WHERE table_name = 'otps' AND column_name = 'purpose'
         ) THEN
           ALTER TABLE otps ADD COLUMN purpose VARCHAR(20) DEFAULT 'verify';
+        END IF;
+      END $$;
+    `);
+
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'users' AND column_name = 'has_consented'
+        ) THEN
+          ALTER TABLE users ADD COLUMN has_consented BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'users' AND column_name = 'consented_at'
+        ) THEN
+          ALTER TABLE users ADD COLUMN consented_at TIMESTAMP;
         END IF;
       END $$;
     `);
@@ -221,6 +241,8 @@ async function initializeDatabase() {
         patient_name VARCHAR(255),
         patient_id VARCHAR(255),
         file_path TEXT NOT NULL,
+        file_url TEXT,
+        storage_path TEXT,
         file_name VARCHAR(255),
         file_size BIGINT,
         mime_type VARCHAR(100),
@@ -248,6 +270,58 @@ async function initializeDatabase() {
         FOREIGN KEY (audio_record_id) REFERENCES audio_records(id) ON DELETE SET NULL,
         FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
       )
+    `);
+
+    // Benchmark score tables (company internal)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS benchmark_scores (
+        model_id VARCHAR(100) PRIMARY KEY,
+        wins INT DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS benchmark_votes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        run_id UUID NOT NULL,
+        transcript_id UUID,
+        audio_record_id UUID,
+        user_uid VARCHAR(16),
+        model_id VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'benchmark_votes' AND column_name = 'user_uid'
+        ) THEN
+          ALTER TABLE benchmark_votes ALTER COLUMN user_uid DROP NOT NULL;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'benchmark_votes' AND column_name = 'transcript_id'
+        ) THEN
+          ALTER TABLE benchmark_votes ALTER COLUMN transcript_id DROP NOT NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'benchmark_votes' AND column_name = 'audio_record_id'
+        ) THEN
+          ALTER TABLE benchmark_votes ADD COLUMN audio_record_id UUID;
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'benchmark_votes'
+            AND constraint_name = 'benchmark_votes_user_uid_fkey'
+        ) THEN
+          ALTER TABLE benchmark_votes DROP CONSTRAINT benchmark_votes_user_uid_fkey;
+        END IF;
+      END $$;
     `);
 
     await client.query(`
@@ -293,6 +367,18 @@ async function initializeDatabase() {
           WHERE table_name = 'audio_records' AND column_name = 'photo_path'
         ) THEN
           ALTER TABLE audio_records ADD COLUMN photo_path TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'file_url'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN file_url TEXT;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'audio_records' AND column_name = 'storage_path'
+        ) THEN
+          ALTER TABLE audio_records ADD COLUMN storage_path TEXT;
         END IF;
         IF NOT EXISTS (
           SELECT 1 FROM information_schema.columns 

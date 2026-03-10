@@ -33,6 +33,15 @@ async function authenticate(req, res, next) {
       });
     }
 
+    // Block access until Terms & Conditions are accepted (except consent endpoint)
+    const isConsentEndpoint = req.baseUrl === '/api/auth' && req.path === '/consent';
+    if (!user.has_consented && !isConsentEndpoint) {
+      return res.status(403).json({
+        success: false,
+        error: 'Please accept the Terms & Conditions to continue.',
+      });
+    }
+
     // Attach user to request
     req.user = user;
     req.userId = decoded.userId;

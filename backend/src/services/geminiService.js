@@ -411,4 +411,154 @@ async function generateGeminiFollowup({previousResponse, followupText, patientId
   });
 }
 
-module.exports = {generateGeminiSuggestion, generateGeminiFollowup};
+const generateBenchmarkResponse = async ({modelName, promptText}) => {
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
+    const resolvedModel = normalizeModelName(modelName) || (await resolveModelName());
+    if (!resolvedModel) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{text: promptText}],
+        },
+      ],
+    };
+
+    let response = await fetchWithRetry(endpoint, body);
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 404) {
+        const models = await listModels();
+        const fallback = pickModelFromList(models);
+        if (fallback && fallback !== resolvedModel) {
+          const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
+          response = await fetchWithRetry(retryEndpoint, body);
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError(
+                'Gemini rate limited',
+                parseRetryAfterMs(response)
+              );
+            }
+            throw new Error(`Gemini API error: ${retryError}`);
+          }
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      } else if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    }
+
+    const data = await response.json();
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+    return text.trim();
+  });
+};
+
+module.exports = {
+  generateGeminiSuggestion,
+  generateGeminiFollowup,
+  generateBenchmarkResponse,
+  getBenchmarkPrompt: () => GEMINI_PROMPT,
+  generateBenchmarkAudio: async ({audioPath, audioUrl, mimeType, patientId, modelName, promptText}) => {
+    return runGeminiThrottled(async () => {
+      if (!GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not set');
+      }
+      const resolvedModel = normalizeModelName(modelName) || (await resolveModelName());
+      if (!resolvedModel) {
+        throw new Error('No compatible Gemini model found for generateContent.');
+      }
+
+      let audioBase64 = null;
+      if (audioPath) {
+        audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
+      } else if (audioUrl) {
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch audio: ${errorText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+      } else {
+        throw new Error('No audio source provided for benchmark.');
+      }
+      const basePrompt = promptText && String(promptText).trim()
+        ? String(promptText).trim()
+        : GEMINI_PROMPT;
+      const promptWithPatient = `${basePrompt}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+      const body = {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {text: promptWithPatient},
+              {
+                inlineData: {
+                  mimeType,
+                  data: audioBase64,
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      let response = await fetchWithRetry(
+        `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`,
+        body
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 404) {
+          const models = await listModels();
+          const fallback = pickModelFromList(models);
+          if (fallback && fallback !== resolvedModel) {
+            const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
+            response = await fetchWithRetry(retryEndpoint, body);
+            if (!response.ok) {
+              const retryError = await response.text();
+              if (response.status === 429) {
+                throw new GeminiRateLimitError(
+                  'Gemini rate limited',
+                  parseRetryAfterMs(response)
+                );
+              }
+              throw new Error(`Gemini API error: ${retryError}`);
+            }
+          } else {
+            throw new Error(`Gemini API error: ${errorText}`);
+          }
+        } else if (response.status === 429) {
+          throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      }
+
+      const data = await response.json();
+      const text =
+        data?.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text)
+          .filter(Boolean)
+          .join('\n') || '';
+      return text.trim();
+    });
+  },
+};

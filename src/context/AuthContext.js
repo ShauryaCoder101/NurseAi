@@ -51,6 +51,10 @@ export const AuthProvider = ({children}) => {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((nextUser) => {
+    setUser(nextUser);
+  }, []);
+
   const value = {
     isAuthenticated,
     loading,
@@ -58,6 +62,7 @@ export const AuthProvider = ({children}) => {
     login,
     logout,
     checkAuthStatus,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

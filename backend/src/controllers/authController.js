@@ -183,6 +183,8 @@ async function verifyOTP(req, res) {
           uid: user.uid,
           email: user.email,
           phoneNumber: user.phone_number,
+          hasConsented: user.has_consented,
+          consentedAt: user.consented_at,
         },
       },
     });
@@ -317,6 +319,8 @@ async function login(req, res) {
           uid: user.uid,
           email: user.email,
           phoneNumber: user.phone_number,
+          hasConsented: user.has_consented,
+          consentedAt: user.consented_at,
         },
       },
     });
@@ -454,6 +458,65 @@ async function resetPassword(req, res) {
   }
 }
 
+async function getConsentStatus(req, res) {
+  try {
+    return res.json({
+      success: true,
+      data: {
+        hasConsented: !!req.user?.has_consented,
+        consentedAt: req.user?.consented_at || null,
+      },
+    });
+  } catch (error) {
+    console.error('Get consent status error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
+async function acceptConsent(req, res) {
+  try {
+    const {accepted} = req.body || {};
+    if (!accepted) {
+      return res.status(400).json({
+        success: false,
+        error: 'Consent must be accepted to proceed.',
+      });
+    }
+
+    if (req.user?.has_consented) {
+      return res.json({
+        success: true,
+        data: {
+          hasConsented: true,
+          consentedAt: req.user.consented_at,
+        },
+      });
+    }
+
+    const updated = await dbHelpers.get(
+      'UPDATE users SET has_consented = TRUE, consented_at = NOW() WHERE uid = $1 RETURNING has_consented, consented_at',
+      [req.user.uid]
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        hasConsented: !!updated?.has_consented,
+        consentedAt: updated?.consented_at || null,
+      },
+    });
+  } catch (error) {
+    console.error('Accept consent error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  }
+}
+
 module.exports = {
   register,
   verifyOTP,
@@ -461,4 +524,6 @@ module.exports = {
   login,
   requestPasswordReset,
   resetPassword,
+  getConsentStatus,
+  acceptConsent,
 };

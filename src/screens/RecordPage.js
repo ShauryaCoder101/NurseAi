@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useRef, useEffect} from 'react';
+import React, {useState, useCallback, useRef, useEffect, useMemo} from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Modal,
   Keyboard,
+  Pressable,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,6 +25,224 @@ const GEMINI_RETRY_WINDOW_MS = 30 * 60 * 1000;
 const GEMINI_RETRY_DELAY_MS = 60 * 1000;
 const GEMINI_RETRY_MAX_ATTEMPTS = 3;
 
+const PROFORMA_DIABETES = `1. Diagnosis Background
+Ask the patient:
+When were you first diagnosed with diabetes? Capture duration in years or months.
+Do you know which type of diabetes you have — Type 1, Type 2, or gestational?
+Have you ever been hospitalized because of diabetes? If yes, when and why?
+
+2. Current Symptoms
+Ask specifically and document response:
+Are you urinating more frequently than usual?
+Are you feeling excessive thirst?
+Are you feeling increased hunger?
+Have you had any recent weight change? If yes, record how many kilograms and over what time period.
+Are you feeling fatigue?
+Any blurred vision?
+Any tingling or numbness in hands or feet?
+Any wounds that are taking longer than usual to heal?
+Any recurrent infections in the last 6 months?
+
+3. Home Sugar Monitoring (Capture Exact Numbers)
+Ask clearly:
+Do you check your blood sugar at home?
+What is your usual fasting blood sugar reading? Record in mg/dL.
+What is your usual post-meal blood sugar reading? Record in mg/dL.
+What was your most recent blood sugar reading? Record value and date.
+When was your last HbA1c test?
+What was the HbA1c percentage?
+Low sugar screening:
+Have you had episodes of low blood sugar?
+What was the lowest value recorded?
+How often do these episodes occur?
+What symptoms do you get during low sugar?
+
+4. Medication Details (Precise Dosing Required)
+Ask in detail:
+What diabetes medicines are you currently taking? Record exact drug names.
+What is the dose of each medicine?
+How many times per day do you take it?
+If on insulin:
+What type of insulin are you using?
+How many units do you take in the morning?
+How many units do you take in the afternoon?
+How many units do you take at night?
+Do you ever skip insulin doses?
+Ask about adherence clearly:
+How many doses do you miss per week on average?
+
+5. Complication Screening
+Kidney:
+Have you had kidney tests recently?
+What was your last serum creatinine value?
+Have you ever been told you have protein in urine?
+Eye:
+When was your last eye examination?
+Were you told you have diabetic retinopathy?
+Nerve:
+Do you have burning pain in feet?
+Loss of sensation?
+Any balance issues?
+Heart:
+Any chest pain?
+Any shortness of breath on exertion?
+Foot:
+Any foot ulcers currently?
+Any past amputations?
+
+6. Vital and Clinical Measurements (To Measure Now)
+The app should remind the nurse to capture:
+Current weight in kilograms.
+Height in centimeters.
+Calculate BMI.
+Blood pressure.
+Pulse rate.
+Respiratory rate.
+
+7. Lab Values (If Available – Capture Exact Numbers)
+Ask:
+What was your last fasting blood sugar lab value?
+What was your last post-prandial value?
+What was your HbA1c?
+What were your cholesterol values?
+What was your serum creatinine?
+Was urine albumin tested? What was the result?
+
+8. Lifestyle Quantification
+Ask in measurable terms:
+How many minutes per day do you exercise?
+How many days per week?
+How many cigarettes per day?
+How many alcoholic drinks per week?
+How many hours of sleep per night?`;
+
+const PROFORMA_HYPERTENSION = `1. Opening
+Are you here for blood pressure follow-up or new symptoms?
+Since when are you having these complaints?
+
+2. Current Symptoms
+Headache?
+Dizziness?
+Blurred vision?
+Chest pain?
+Palpitations?
+Shortness of breath?
+Swelling in legs?
+Or no symptoms?
+Has anything worsened recently?
+Have you ever had very high BP requiring emergency visit?
+
+3. Past Illness
+Do you have diabetes?
+Heart disease or previous heart attack?
+Stroke?
+Kidney disease?
+Thyroid problems?
+Any other illness?
+
+4. Medicines
+What BP medicines are you taking?
+Do you take them regularly?
+Any side effects?
+Any other medicines including herbal?
+
+5. Family History
+Does anyone in your family have high blood pressure?
+Family history of diabetes?
+Stroke?
+Heart attack?
+Kidney disease?
+
+6. Lifestyle
+Do you smoke?
+Do you drink alcohol?
+How would you describe your diet? High salt? Normal? Low salt?
+Do you exercise?
+How stressed are you — low, moderate, high?
+
+7. Organ Damage Screening
+Any vision changes?
+Chest pressure?
+Breathlessness while lying flat?
+Swelling in feet?
+Less urine or frothy urine?
+Episodes of weakness or difficulty speaking?
+
+8. Monitoring
+Do you check BP at home?
+What was your last BP reading?`;
+
+const PROFORMA_FEVER = `1. Opening
+What brings you in today?
+Since when have you had fever?
+Have you measured your temperature? What was the highest reading?
+Does the fever stay all day or come and go?
+Is it higher in the evening?
+
+2. Associated Symptoms
+Do you get chills or shivering?
+Body pain?
+Feeling weak or unusually tired?
+Headache?
+Any confusion or fits?
+Sore throat?
+Cough?
+Difficulty breathing?
+Stomach pain?
+Vomiting or nausea?
+Loose motions?
+Burning while passing urine?
+Any skin rashes?
+Joint pains?
+
+3. Exposure & Travel
+Has anyone around you had fever recently?
+Any mosquito bites?
+Contact with animals like cattle, dogs, or rodents?
+Have you travelled in the last 4 weeks?
+Any exposure to dirty water or flooding?
+
+4. Medical Background
+Have you had similar fever before?
+Do you have diabetes?
+High blood pressure?
+Heart problems?
+Asthma?
+Thyroid issues?
+Kidney disease?
+HIV or low immunity?
+Any recent dental procedure?
+Have you had your spleen removed?
+
+5. Medication History
+Are you taking any regular medicines?
+Have you taken antibiotics for this fever?
+Have you taken paracetamol or ibuprofen?
+Any herbal or traditional medicines?
+
+6. Immunization & Other Important Points
+Have you taken COVID vaccine?
+Typhoid vaccine?
+Any recent surgery?
+(If female) When was your last menstrual period?
+Are you able to drink fluids?
+Is your urine output normal?
+
+7. Red Flag Screening (Ask Directly)
+Are you feeling extremely weak?
+Any confusion?
+Is your fever very high (above 103°F)?
+Neck stiffness or light hurting your eyes?
+Not passing urine?
+Severe breathing difficulty?
+Any bleeding`;
+
+const PROFORMAS = [
+  {id: 'diabetes', title: 'Diabetes', content: PROFORMA_DIABETES},
+  {id: 'hypertension', title: 'Hypertension', content: PROFORMA_HYPERTENSION},
+  {id: 'fever', title: 'Fever', content: PROFORMA_FEVER},
+];
+
 const RecordPage = ({navigation}) => {
   const [isRecording, setIsRecording] = useState(false);
   const [patientName, setPatientName] = useState('');
@@ -35,6 +254,13 @@ const RecordPage = ({navigation}) => {
   const [missingSuggestionId, setMissingSuggestionId] = useState(null);
   const [pendingGeminiRetry, setPendingGeminiRetry] = useState(null);
   const [retryCountdown, setRetryCountdown] = useState(0);
+  const [proformaQuery, setProformaQuery] = useState('');
+  const [createProformaQuery, setCreateProformaQuery] = useState('');
+  const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+  const [generatedProforma, setGeneratedProforma] = useState(null);
+  const [proformaModalVisible, setProformaModalVisible] = useState(false);
+  const [selectedProforma, setSelectedProforma] = useState(null);
+  const [consentModalVisible, setConsentModalVisible] = useState(false);
   const [missingData, setMissingData] = useState({
     age: '',
     gender: '',
@@ -62,6 +288,12 @@ const RecordPage = ({navigation}) => {
   const [pendingAudioUri, setPendingAudioUri] = useState(null);
 
   const canStartRecording = patientName.trim().length > 0 && patientId.trim().length > 0;
+  const proformaItems = useMemo(() => {
+    const query = proformaQuery.trim().toLowerCase();
+    const combined = generatedProforma ? [generatedProforma, ...PROFORMAS] : PROFORMAS;
+    if (!query) return combined;
+    return combined.filter((item) => item.title.toLowerCase().includes(query));
+  }, [proformaQuery, generatedProforma]);
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', (event) => {
       setKeyboardHeight(event.endCoordinates?.height || 0);
@@ -137,7 +369,7 @@ const RecordPage = ({navigation}) => {
     [patientId, patientName, persistRetryState]
   );
 
-  const handleStartRecording = useCallback(async () => {
+  const startRecording = useCallback(async () => {
     if (!canStartRecording) {
       Alert.alert('Required Fields', 'Please enter both Patient Name and Patient ID before recording.');
       return;
@@ -171,7 +403,28 @@ const RecordPage = ({navigation}) => {
       });
 
       const {recording} = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.LOW_QUALITY
+        {
+          android: {
+            extension: '.m4a',
+            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+            audioEncoder: Audio.AndroidAudioEncoder.AAC,
+            sampleRate: 22050,
+            numberOfChannels: 1,
+            bitRate: 64000,
+          },
+          ios: {
+            extension: '.m4a',
+            outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+            audioQuality: Audio.IOSAudioQuality.MEDIUM,
+            sampleRate: 22050,
+            numberOfChannels: 1,
+            bitRate: 64000,
+          },
+          web: {
+            mimeType: 'audio/webm',
+            bitsPerSecond: 64000,
+          },
+        }
       );
       recordingRef.current = recording;
       recordingStartRef.current = Date.now();
@@ -189,6 +442,23 @@ const RecordPage = ({navigation}) => {
       );
     }
   }, [canStartRecording, patientName, patientId]);
+
+  const handleStartRecording = useCallback(() => {
+    if (!canStartRecording) {
+      Alert.alert('Required Fields', 'Please enter both Patient Name and Patient ID before recording.');
+      return;
+    }
+    setConsentModalVisible(true);
+  }, [canStartRecording]);
+
+  const handleConsentAgree = useCallback(async () => {
+    setConsentModalVisible(false);
+    await startRecording();
+  }, [startRecording]);
+
+  const handleConsentCancel = useCallback(() => {
+    setConsentModalVisible(false);
+  }, []);
 
   const parseMissingFields = useCallback((content) => {
     if (!content) return [];
@@ -457,19 +727,35 @@ const RecordPage = ({navigation}) => {
         return;
       }
 
-      await recording.stopAndUnloadAsync();
+      const status = await recording.getStatusAsync();
+      console.log('Recording status before stop:', JSON.stringify(status));
+
+      if (!status.isDoneRecording && status.isRecording) {
+        await recording.stopAndUnloadAsync();
+      } else {
+        await recording.stopAndUnloadAsync().catch(() => {});
+      }
+
+      const uri = recording.getURI();
+      recordingRef.current = null;
+
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
       });
-      const uri = recording.getURI();
-      recordingRef.current = null;
 
       if (!uri) {
         Alert.alert('Error', 'Recording failed. No audio file was created.');
         return;
       }
 
+      const durationMs = status.durationMillis || 0;
+      if (durationMs < 500) {
+        Alert.alert('Recording Too Short', 'The recording appears to be empty. Please try again.');
+        return;
+      }
+
+      console.log(`Recording stopped: duration=${durationMs}ms, uri=${uri}`);
       promptPhotoUpload(uri);
     } catch (error) {
       console.error('Error stopping recording:', error);
@@ -586,6 +872,40 @@ const RecordPage = ({navigation}) => {
     });
   }, [isMissingFormValid, missingSuggestionId, missingData, requiredMissingKeys]);
 
+  const handleGenerateProforma = useCallback(async () => {
+    const symptoms = createProformaQuery.trim();
+    if (!symptoms) {
+      Alert.alert('Required', 'Please enter symptoms to generate a proforma.');
+      return;
+    }
+
+    try {
+      setIsGeneratingProforma(true);
+      const result = await apiService.generateProforma(symptoms);
+      if (result.success && result.data?.content) {
+        const titleBase = symptoms.length > 48 ? `${symptoms.slice(0, 45)}...` : symptoms;
+        setGeneratedProforma({
+          id: `ai-${Date.now()}`,
+          title: `AI Proforma: ${titleBase}`,
+          content: result.data.content,
+        });
+        setCreateProformaQuery('');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to generate proforma.');
+      }
+    } catch (error) {
+      console.error('Generate proforma error:', error);
+      Alert.alert('Error', 'Failed to generate proforma. Please try again.');
+    } finally {
+      setIsGeneratingProforma(false);
+    }
+  }, [createProformaQuery]);
+
+  const handleOpenProforma = useCallback((proforma) => {
+    setSelectedProforma(proforma);
+    setProformaModalVisible(true);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -596,6 +916,60 @@ const RecordPage = ({navigation}) => {
         onScroll={onMainScroll}
         scrollEventThrottle={16}>
         <View style={styles.contentInner}>
+          <View style={styles.proformaSection}>
+            <Text style={styles.sectionTitle}>Search Proforma</Text>
+            <View style={styles.proformaSearchWrapper}>
+              <Ionicons name="search-outline" size={18} color="#999999" />
+              <TextInput
+                style={styles.proformaSearchInput}
+                placeholder="Search proforma"
+                placeholderTextColor="#999999"
+                value={proformaQuery}
+                onChangeText={setProformaQuery}
+                onFocus={handleMainFocus}
+              />
+            </View>
+            <View style={styles.proformaCreateWrapper}>
+              <Ionicons name="sparkles-outline" size={18} color="#999999" />
+              <TextInput
+                style={styles.proformaCreateInput}
+                placeholder="Create proforma (e.g., rash and fever)"
+                placeholderTextColor="#999999"
+                value={createProformaQuery}
+                onChangeText={setCreateProformaQuery}
+                onFocus={handleMainFocus}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.proformaCreateButton,
+                  (!createProformaQuery.trim() || isGeneratingProforma) &&
+                    styles.proformaCreateButtonDisabled,
+                ]}
+                onPress={handleGenerateProforma}
+                disabled={!createProformaQuery.trim() || isGeneratingProforma}>
+                <Text style={styles.proformaCreateButtonText}>
+                  {isGeneratingProforma ? 'Creating...' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.proformaList}>
+              {proformaItems.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.proformaItem}
+                  onPress={() => handleOpenProforma(item)}
+                  activeOpacity={0.8}>
+                  <Text style={styles.proformaItemText}>{item.title}</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+                </TouchableOpacity>
+              ))}
+              {proformaItems.length === 0 && (
+                <View style={styles.proformaEmpty}>
+                  <Text style={styles.proformaEmptyText}>No proformas found.</Text>
+                </View>
+              )}
+            </View>
+          </View>
           <View style={styles.iconContainer}>
             <Ionicons 
               name={isRecording ? 'mic' : 'mic-outline'} 
@@ -710,6 +1084,31 @@ const RecordPage = ({navigation}) => {
           <View style={{height: keyboardHeight}} />
         </View>
       </ScrollView>
+
+      <Modal
+        visible={consentModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleConsentCancel}>
+        <View style={styles.consentModalOverlay}>
+          <View style={styles.consentModalCard}>
+            <Text style={styles.consentModalTitle}>Informed Consent</Text>
+            <Text style={styles.consentModalBody}>
+              Note: please inform the patient that NurseAI is right now only collecting data for
+              research purposes and the organisation will try its best to protect the data yet in
+              case of leaks/hacking the organisation is not liable.
+            </Text>
+            <View style={styles.consentModalActions}>
+              <Pressable style={styles.consentModalCancel} onPress={handleConsentCancel}>
+                <Text style={styles.consentModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.consentModalAgree} onPress={handleConsentAgree}>
+                <Text style={styles.consentModalAgreeText}>Agree & Start</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={photoOptionsVisible}
@@ -932,6 +1331,31 @@ const RecordPage = ({navigation}) => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={proformaModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProformaModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {selectedProforma?.title || 'Proforma'}
+            </Text>
+            <ScrollView style={styles.modalForm}>
+              <Text style={styles.proformaContent}>
+                {selectedProforma?.content || ''}
+              </Text>
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalSubmit}
+              onPress={() => setProformaModalVisible(false)}
+              activeOpacity={0.8}>
+              <Text style={styles.modalSubmitText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -953,6 +1377,103 @@ const styles = StyleSheet.create({
   contentInner: {
     width: '100%',
     alignItems: 'center',
+  },
+  proformaSection: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#EEF1F6',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 6},
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 12,
+  },
+  proformaSearchWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F8FA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 12,
+  },
+  proformaSearchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 15,
+    color: '#333333',
+  },
+  proformaCreateWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F8FA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E6EBF2',
+    paddingHorizontal: 12,
+    height: 44,
+    marginBottom: 12,
+  },
+  proformaCreateInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#333333',
+  },
+  proformaCreateButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  proformaCreateButtonDisabled: {
+    opacity: 0.6,
+  },
+  proformaCreateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  proformaList: {
+    gap: 10,
+  },
+  proformaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FAFAFA',
+  },
+  proformaItemText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333333',
+  },
+  proformaEmpty: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  proformaEmptyText: {
+    fontSize: 13,
+    color: '#999999',
   },
   iconContainer: {
     marginBottom: 24,
@@ -1112,6 +1633,62 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  consentModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  consentModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  consentModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  consentModalBody: {
+    fontSize: 14,
+    color: '#666666',
+    lineHeight: 20,
+  },
+  consentModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  consentModalCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    marginRight: 10,
+  },
+  consentModalCancelText: {
+    color: '#666666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  consentModalAgree: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  consentModalAgreeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
@@ -1177,6 +1754,11 @@ const styles = StyleSheet.create({
   },
   modalForm: {
     marginBottom: 16,
+  },
+  proformaContent: {
+    fontSize: 14,
+    color: '#333333',
+    lineHeight: 20,
   },
   modalSectionTitle: {
     fontSize: 16,
