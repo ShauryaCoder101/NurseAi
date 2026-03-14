@@ -486,6 +486,60 @@ export const apiService = {
     }
   },
 
+  submitClarifyingAnswers: async (audioRecordId, answerAudioUri) => {
+    try {
+      const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+      const url = `${API_BASE_URL}/audio/${audioRecordId}/prescribe`;
+
+      const filename = answerAudioUri.split('/').pop() || 'answer.m4a';
+      const extension = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const audioTypeMap = {
+        m4a: 'audio/mp4',
+        mp4: 'audio/mp4',
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        caf: 'audio/x-caf',
+        aac: 'audio/aac',
+        '3gp': 'audio/3gpp',
+        '3gpp': 'audio/3gpp',
+      };
+      const fileType = audioTypeMap[extension] || 'audio/mp4';
+
+      const normalizedUri =
+        answerAudioUri.startsWith('file://') || answerAudioUri.startsWith('content://')
+          ? answerAudioUri
+          : `file://${answerAudioUri}`;
+
+      const formData = new FormData();
+      formData.append('answerAudio', {
+        uri: normalizedUri,
+        name: filename,
+        type: fileType,
+      });
+
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {success: false, status: response.status, error: data.error || 'Prescription failed', data};
+      }
+
+      return {success: true, data};
+    } catch (error) {
+      console.error('Submit clarifying answers error:', error);
+      return {success: false, error: error.message};
+    }
+  },
+
   retryGeminiForAudio: async (audioRecordId) => {
     const result = await apiCall(`/audio/${audioRecordId}/retry-gemini`, {
       method: 'POST',

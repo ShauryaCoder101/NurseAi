@@ -11,6 +11,7 @@ import {
   Modal,
   Keyboard,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -261,6 +262,11 @@ const RecordPage = ({navigation}) => {
   const [proformaModalVisible, setProformaModalVisible] = useState(false);
   const [selectedProforma, setSelectedProforma] = useState(null);
   const [consentModalVisible, setConsentModalVisible] = useState(false);
+  const [diagnosisText, setDiagnosisText] = useState('');
+  const [currentAudioRecordId, setCurrentAudioRecordId] = useState(null);
+  const [isAnswerRecording, setIsAnswerRecording] = useState(false);
+  const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
+  const [answerRecordingSeconds, setAnswerRecordingSeconds] = useState(0);
   const [missingData, setMissingData] = useState({
     age: '',
     gender: '',
@@ -274,6 +280,9 @@ const RecordPage = ({navigation}) => {
     bmi: '',
   });
   const recordingRef = useRef(null);
+  const answerRecordingRef = useRef(null);
+  const answerRecordingStartRef = useRef(null);
+  const answerRecordingIntervalRef = useRef(null);
   const scrollViewRef = useRef(null);
   const modalScrollRef = useRef(null);
   const {onScroll: onMainScroll, handleFocus: handleMainFocus} =
@@ -553,7 +562,8 @@ const RecordPage = ({navigation}) => {
             );
             return;
           }
-          await handleMissingDataFlow();
+          setCurrentAudioRecordId(payload.id);
+          setDiagnosisText(payload.diagnosisText || '');
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload recording.');
         }
@@ -564,8 +574,122 @@ const RecordPage = ({navigation}) => {
         setIsUploading(false);
       }
     },
-    [patientName, patientId, handleMissingDataFlow, handleGeminiRateLimit]
+    [patientName, patientId, handleGeminiRateLimit]
   );
+
+  const startAnswerRecording = useCallback(async () => {
+    try {
+      if (answerRecordingRef.current) {
+        await answerRecordingRef.current.stopAndUnloadAsync().catch(() => {});
+        answerRecordingRef.current = null;
+      }
+
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+
+      const {recording} = await Audio.Recording.createAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 22050,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MEDIUM,
+          sampleRate: 22050,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 64000,
+        },
+      });
+      answerRecordingRef.current = recording;
+      answerRecordingStartRef.current = Date.now();
+      setAnswerRecordingSeconds(0);
+      setIsAnswerRecording(true);
+    } catch (error) {
+      console.error('Error starting answer recording:', error);
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
+    }
+  }, []);
+
+  const stopAnswerAndSubmit = useCallback(async () => {
+    try {
+      setIsAnswerRecording(false);
+
+      const recording = answerRecordingRef.current;
+      if (!recording) {
+        Alert.alert('Error', 'No active answer recording found.');
+        return;
+      }
+
+      const status = await recording.getStatusAsync();
+      if (!status.isDoneRecording && status.isRecording) {
+        await recording.stopAndUnloadAsync();
+      } else {
+        await recording.stopAndUnloadAsync().catch(() => {});
+      }
+
+      const uri = recording.getURI();
+      answerRecordingRef.current = null;
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+
+      if (!uri) {
+        Alert.alert('Error', 'Answer recording failed. No audio file was created.');
+        return;
+      }
+
+      const durationMs = status.durationMillis || 0;
+      if (durationMs < 500) {
+        Alert.alert('Recording Too Short', 'The answer recording appears to be empty. Please try again.');
+        return;
+      }
+
+      setIsSubmittingAnswers(true);
+      try {
+        const result = await apiService.submitClarifyingAnswers(currentAudioRecordId, uri);
+        if (result.success) {
+          setDiagnosisText('');
+          setCurrentAudioRecordId(null);
+          await handleMissingDataFlow();
+        } else {
+          Alert.alert(
+            'Error',
+            result.error || 'Failed to generate prescription. Please try again.'
+          );
+        }
+      } catch (error) {
+        console.error('Submit answer audio error:', error);
+        Alert.alert('Error', 'Failed to submit answers. Please try again.');
+      } finally {
+        setIsSubmittingAnswers(false);
+      }
+    } catch (error) {
+      console.error('Error stopping answer recording:', error);
+      Alert.alert('Error', 'Failed to stop answer recording. Please try again.');
+    }
+  }, [currentAudioRecordId, handleMissingDataFlow]);
 
   const handleRetryGemini = useCallback(async () => {
     if (!pendingGeminiRetry) {
@@ -787,7 +911,38 @@ const RecordPage = ({navigation}) => {
   }, [isRecording]);
 
   useEffect(() => {
+    if (!isAnswerRecording) {
+      if (answerRecordingIntervalRef.current) {
+        clearInterval(answerRecordingIntervalRef.current);
+        answerRecordingIntervalRef.current = null;
+      }
+      return;
+    }
+
+    answerRecordingIntervalRef.current = setInterval(() => {
+      if (!answerRecordingStartRef.current) return;
+      const elapsed = Math.floor((Date.now() - answerRecordingStartRef.current) / 1000);
+      setAnswerRecordingSeconds(elapsed);
+    }, 500);
+
+    return () => {
+      if (answerRecordingIntervalRef.current) {
+        clearInterval(answerRecordingIntervalRef.current);
+        answerRecordingIntervalRef.current = null;
+      }
+    };
+  }, [isAnswerRecording]);
+
+  useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (diagnosisText && currentAudioRecordId) {
+        e.preventDefault();
+        Alert.alert(
+          'Diagnosis In Progress',
+          'Please record and submit your answers to the clarifying questions before leaving.'
+        );
+        return;
+      }
       if (missingFormVisible && !missingFormCompleted) {
         e.preventDefault();
         Alert.alert(
@@ -799,7 +954,6 @@ const RecordPage = ({navigation}) => {
 
     return () => {
       unsubscribe();
-      // Cleanup recording on unmount
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync().catch(() => {});
         recordingRef.current = null;
@@ -808,8 +962,16 @@ const RecordPage = ({navigation}) => {
         clearInterval(recordingIntervalRef.current);
         recordingIntervalRef.current = null;
       }
+      if (answerRecordingRef.current) {
+        answerRecordingRef.current.stopAndUnloadAsync().catch(() => {});
+        answerRecordingRef.current = null;
+      }
+      if (answerRecordingIntervalRef.current) {
+        clearInterval(answerRecordingIntervalRef.current);
+        answerRecordingIntervalRef.current = null;
+      }
     };
-  }, [navigation, missingFormVisible, missingFormCompleted]);
+  }, [navigation, missingFormVisible, missingFormCompleted, diagnosisText, currentAudioRecordId]);
 
   const formatDuration = useCallback((totalSeconds) => {
     const minutes = Math.floor(totalSeconds / 60);
@@ -970,6 +1132,51 @@ const RecordPage = ({navigation}) => {
               )}
             </View>
           </View>
+
+          {diagnosisText ? (
+            <View style={styles.diagnosisSection}>
+              <View style={styles.diagnosisSectionHeader}>
+                <Ionicons name="medkit" size={20} color="#007AFF" />
+                <Text style={styles.diagnosisSectionTitle}>Diagnostic Assessment</Text>
+              </View>
+              <Text style={styles.diagnosisSectionSubtitle}>
+                Review the assessment below, then tap "Answer" to record your responses to the clarifying questions.
+              </Text>
+              <View style={styles.diagnosisCard}>
+                <Text style={styles.diagnosisContent}>{diagnosisText}</Text>
+              </View>
+              {isAnswerRecording ? (
+                <View style={styles.answerRecordingContainer}>
+                  <View style={styles.answerRecordingIndicator}>
+                    <Ionicons name="mic" size={24} color="#FF3B30" />
+                    <Text style={styles.answerRecordingTimer}>{formatDuration(answerRecordingSeconds)}</Text>
+                    <Text style={styles.answerRecordingLabel}>Recording answers...</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.answerStopButton}
+                    onPress={stopAnswerAndSubmit}
+                    activeOpacity={0.8}>
+                    <Ionicons name="stop" size={20} color="#FFFFFF" />
+                    <Text style={styles.answerStopButtonText}>Stop & Submit</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : isSubmittingAnswers ? (
+                <View style={styles.answerSubmittingContainer}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                  <Text style={styles.answerSubmittingText}>Generating prescription...</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.answerButton}
+                  onPress={startAnswerRecording}
+                  activeOpacity={0.8}>
+                  <Ionicons name="mic-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.answerButtonText}>Answer</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : null}
+
           <View style={styles.iconContainer}>
             <Ionicons 
               name={isRecording ? 'mic' : 'mic-outline'} 
@@ -1046,11 +1253,11 @@ const RecordPage = ({navigation}) => {
             style={[
               styles.recordButton, 
               isRecording && styles.recordButtonActive,
-              (!canStartRecording && !isRecording) || isUploading ? styles.recordButtonDisabled : null
+              (!canStartRecording && !isRecording) || isUploading || (diagnosisText && currentAudioRecordId) ? styles.recordButtonDisabled : null
             ]}
             onPress={isRecording ? handleStopRecording : handleStartRecording}
             activeOpacity={0.8}
-            disabled={(!canStartRecording && !isRecording) || isUploading}>
+            disabled={(!canStartRecording && !isRecording) || isUploading || Boolean(diagnosisText && currentAudioRecordId)}>
             <Ionicons 
               name={isRecording ? 'stop' : 'mic'} 
               size={32} 
@@ -1759,6 +1966,102 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333333',
     lineHeight: 20,
+  },
+  diagnosisSection: {
+    backgroundColor: '#F0F7FF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#D0E4FF',
+  },
+  diagnosisSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  diagnosisSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#007AFF',
+    marginLeft: 8,
+  },
+  diagnosisSectionSubtitle: {
+    fontSize: 13,
+    color: '#555555',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  diagnosisCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 14,
+  },
+  diagnosisContent: {
+    fontSize: 14,
+    color: '#333333',
+    lineHeight: 22,
+  },
+  answerButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  answerRecordingContainer: {
+    alignItems: 'center',
+  },
+  answerRecordingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  answerRecordingTimer: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FF3B30',
+    marginLeft: 8,
+    marginRight: 10,
+  },
+  answerRecordingLabel: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  answerStopButton: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answerStopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  answerSubmittingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  answerSubmittingText: {
+    fontSize: 15,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginLeft: 10,
   },
   modalSectionTitle: {
     fontSize: 16,

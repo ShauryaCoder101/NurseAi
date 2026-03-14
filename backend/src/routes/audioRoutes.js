@@ -69,4 +69,41 @@ router.post(
   audioController.retryGeminiForAudioRecord
 );
 
+const answerStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const tmpDir = path.join(__dirname, '../../uploads/tmp');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, {recursive: true});
+    }
+    cb(null, tmpDir);
+  },
+  filename: (req, file, cb) => {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `answer_${Date.now()}_${safeName}`);
+  },
+});
+
+const answerUpload = multer({
+  storage: answerStorage,
+  fileFilter: (req, file, cb) => {
+    const mime = file.mimetype || '';
+    const name = (file.originalname || '').toLowerCase();
+    const isAudioMime = mime.startsWith('audio/');
+    const isOctetStream = mime === 'application/octet-stream';
+    const hasAudioExt = /\.(m4a|mp4|mp3|wav|aac|3gp|3gpp|caf|ogg|webm)$/.test(name);
+    if (isAudioMime || (isOctetStream && hasAudioExt)) {
+      return cb(null, true);
+    }
+    return cb(new Error('Invalid audio file type'), false);
+  },
+  limits: {fileSize: 50 * 1024 * 1024},
+});
+
+router.post(
+  '/:id/prescribe',
+  authenticate,
+  answerUpload.single('answerAudio'),
+  audioController.finalizePrescription
+);
+
 module.exports = router;

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NurseAI - Clinical Decision Support for Rural Healthcare</title>
+  <meta name="description" content="AI-powered clinical decision support tool for nurses in rural India. Empowering frontline health workers with generative AI." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #007AFF;
+      --blue-dark: #0055CC;
+      --navy: #0a1628;
+      --gray-50: #f8fafc;
+      --gray-100: #f1f5f9;
+      --gray-200: #e2e8f0;
+      --gray-400: #94a3b8;
+      --gray-500: #64748b;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-800: #1e293b;
+      --gray-900: #0f172a;
+      --white: #ffffff;
+      --red-soft: #fee2e2;
+      --green-soft: #dcfce7;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      color: var(--gray-800);
+      line-height: 1.6;
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Navbar ── */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--gray-200);
+      height: 64px;
+      display: flex;
+      align-items: center;
+    }
+    .navbar-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 48px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--gray-900);
+    }
+    .nav-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #007AFF, #00C6FF);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .nav-logo-icon svg { width: 22px; height: 22px; }
+    .nav-logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .nav-contact {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--blue);
+      text-decoration: none;
+      padding: 8px 20px;
+      border: 1.5px solid var(--blue);
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    .nav-contact:hover {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    /* ── Hero / Carousel Section ── */
+    .hero {
+      padding: 120px 48px 80px;
+      background: linear-gradient(160deg, #f0f7ff 0%, #ffffff 50%, #f0fdf4 100%);
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 800;
+      color: var(--gray-900);
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+      line-height: 1.15;
+    }
+    .hero h1 span { color: var(--blue); }
+    .hero-subtitle {
+      font-size: clamp(16px, 2.5vw, 20px);
+      color: var(--gray-500);
+      max-width: 700px;
+      margin: 0 auto 48px;
+    }
+
+    .carousel-wrapper {
+      position: relative;
+      max-width: 1200px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .carousel-track {
+      display: flex;
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .carousel-slide {
+      min-width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 0 20px;
+    }
+    .phone-frame {
+      width: 320px;
+      background: var(--gray-900);
+      border-radius: 40px;
+      padding: 14px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.05);
+    }
+    .phone-frame img {
+      width: 100%;
+      border-radius: 26px;
+      display: block;
+    }
+    .carousel-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: var(--white);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      cursor: pointer;
+      font-size: 20px;
+      color: var(--gray-700);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 10;
+    }
+    .carousel-btn:hover { background: var(--blue); color: var(--white); }
+    .carousel-prev { left: 8px; }
+    .carousel-next { right: 8px; }
+    .carousel-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .carousel-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: none;
+      background: var(--gray-300, #cbd5e1);
+      cursor: pointer;
+      transition: all 0.3s;
+      padding: 0;
+    }
+    .carousel-dot.active {
+      background: var(--blue);
+      transform: scale(1.2);
+    }
+    .slide-caption {
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--gray-500);
+    }
+
+    /* ── Section Shared ── */
+    .section {
+      padding: 96px 48px;
+    }
+    .section-alt {
+      background: var(--gray-50);
+    }
+    .section-title {
+      font-size: clamp(26px, 4vw, 36px);
+      font-weight: 800;
+      color: var(--gray-900);
+      text-align: center;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    .section-subtitle {
+      font-size: 17px;
+      color: var(--gray-500);
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 56px;
+    }
+
+    /* ── Mission Section ── */
+    .mission-grid {
+      max-width: 1300px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+    }
+    .mission-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 40px;
+      border: 1px solid var(--gray-200);
+      transition: box-shadow 0.3s;
+    }
+    .mission-card:hover {
+      box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+    }
+    .mission-card h3 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mission-card h3 .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .icon-blue { background: #e0f0ff; color: var(--blue); }
+    .icon-green { background: #dcfce7; color: #16a34a; }
+    .mission-card p {
+      font-size: 15px;
+      color: var(--gray-600);
+      line-height: 1.75;
+    }
+
+    /* ── Workflow Section ── */
+    .workflow-container {
+      max-width: 1200px;
+      margin: 48px auto 0;
+    }
+    .workflow-svg {
+      width: 100%;
+      height: auto;
+    }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      max-width: 1200px;
+      margin: 56px auto 0;
+    }
+    .stat-item {
+      text-align: center;
+      padding: 24px 16px;
+      background: var(--white);
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+    }
+    .stat-number {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--blue);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      font-size: 13px;
+      color: var(--gray-500);
+      font-weight: 500;
+    }
+
+    /* ── Performance Section ── */
+    .perf-container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .perf-iframe-wrap {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--gray-200);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+      background: var(--white);
+    }
+    .perf-iframe-wrap iframe {
+      width: 100%;
+      height: 2400px;
+      border: none;
+      display: block;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--navy);
+      color: var(--gray-400);
+      padding: 64px 32px 32px;
+    }
+    .footer-inner {
+      max-width: 1300px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      gap: 48px;
+    }
+    .footer-brand h3 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .footer-brand p {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--gray-400);
+    }
+    .footer-col h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--white);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+    .footer-col p, .footer-col a {
+      font-size: 14px;
+      color: var(--gray-400);
+      text-decoration: none;
+      line-height: 2;
+      display: block;
+    }
+    .footer-col a:hover { color: var(--white); }
+    .footer-bottom {
+      max-width: 1300px;
+      margin: 48px auto 0;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      text-align: center;
+      font-size: 13px;
+      color: var(--gray-500);
+    }
+
+    /* ── Large desktop ── */
+    @media (min-width: 1600px) {
+      .mission-grid { max-width: 1440px; }
+      .stats-bar { max-width: 1400px; }
+      .workflow-container { max-width: 1400px; }
+      .perf-container { max-width: 1440px; }
+      .footer-inner { max-width: 1440px; }
+      .phone-frame { width: 360px; border-radius: 44px; padding: 16px; }
+      .carousel-wrapper { max-width: 1400px; }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .mission-grid { grid-template-columns: 1fr; gap: 24px; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .footer-inner { grid-template-columns: 1fr; gap: 32px; }
+      .phone-frame { width: 260px; border-radius: 32px; padding: 10px; }
+      .section { padding: 64px 20px; }
+      .hero { padding: 100px 20px 60px; }
+      .navbar-inner { padding: 0 20px; }
+      .perf-iframe-wrap iframe { height: 1800px; }
+    }
+    @media (max-width: 480px) {
+      .phone-frame { width: 220px; border-radius: 28px; }
+      .carousel-btn { width: 36px; height: 36px; font-size: 16px; }
+      .stats-bar { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════ NAVBAR ════ -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="#" class="nav-logo">
+        <div class="nav-logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17"/>
+          </svg>
+        </div>
+        <span class="nav-logo-text">NurseAI</span>
+      </a>
+      <a href="#footer" class="nav-contact">Contact Us</a>
+    </div>
+  </nav>
+
+  <!-- ════ HERO + CAROUSEL ════ -->
+  <section class="hero" id="top">
+    <h1>Empowering Nurses with <span>AI</span></h1>
+    <p class="hero-subtitle">
+      A clinical decision support tool designed for frontline health workers in rural India, powered by generative AI.
+    </p>
+
+    <div class="carousel-wrapper">
+      <button class="carousel-btn carousel-prev" onclick="moveCarousel(-1)" aria-label="Previous">&#8592;</button>
+      <button class="carousel-btn carousel-next" onclick="moveCarousel(1)" aria-label="Next">&#8594;</button>
+      <div class="carousel-track" id="carouselTrack">
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/1-login.png" alt="NurseAI Login Screen" /></div>
+            <p class="slide-caption">Secure Login</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/2-dashboard.png" alt="NurseAI Dashboard" /></div>
+            <p class="slide-caption">Clinical Dashboard with AI Suggestions</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/3-history.png" alt="Patient History" /></div>
+            <p class="slide-caption">Patient History &amp; Bengali Patient Guide</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/4-record.png" alt="Audio Recording" /></div>
+            <p class="slide-caption">Audio Recording with Informed Consent</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/5-proforma-neuro.png" alt="Neurological Proforma" /></div>
+            <p class="slide-caption">AI-Generated Diagnostic Proforma</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/6-proforma-anc.png" alt="Antenatal Care Proforma" /></div>
+            <p class="slide-caption">Antenatal Care Interview Guide</p>
+          </div>
+        </div>
+
+        <div class="carousel-slide">
+          <div>
+            <div class="phone-frame"><img src="images/7-dashboard-clean.png" alt="Clean Dashboard" /></div>
+            <p class="slide-caption">Clean Dashboard View</p>
+          </div>
+        </div>
+
+      </div>
+      <div class="carousel-dots" id="carouselDots"></div>
+    </div>
+  </section>
+
+  <!-- ════ OUR MISSION ════ -->
+  <section class="section section-alt" id="mission">
+    <h2 class="section-title">Our Mission</h2>
+    <p class="section-subtitle">Bridging the healthcare gap in rural India through AI-powered clinical decision support.</p>
+
+    <div class="mission-grid">
+      <div class="mission-card">
+        <h3>
+          <span class="icon icon-blue">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+          </span>
+          Background
+        </h3>
+        <p>
+          Rural India, predominantly underserved and low-resourced, is home to 68% of the national population, and is served by only 31% of the country's licensed physicians. The large disparity in physician availability significantly restricts people's access to good-quality healthcare. Nurses and midwives account for 39% of the total health workforce in India and can be upskilled using a generative artificial intelligence (AI) based clinical decision support tool (CDST) to treat common symptoms and conditions presenting in primary health care settings. Here, we describe the development process and performance metrics of a CDST for the treatment of fever, breathlessness, musculoskeletal pain, hypertension, and diabetes mellitus deployed in Birbhum and Purulia districts of West Bengal, India.
+        </p>
+      </div>
+
+      <div class="mission-card">
+        <h3>
+          <span class="icon icon-green">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+          </span>
+          Methods
+        </h3>
+        <p>
+          First, we determined a pipeline architecture that our CDST follows: an elaborate Gemini instruction which ensures ease of usage for the nurses, establishes guardrails and gives a definite role to the AI. Second, we conducted a survey with the nurses which determined that nurses find it easier to operate with an application, so we wrapped the whole pipeline into the NurseAI application. Third, we created a proforma builder using an elaborate Gemini instruction which is visible to the nurses while the audio recording is going on and can create custom proformas to guide the nurses if they feel lost or confused. Finally, we made the app keep patient-wise history so when a suggestion is made, the AI has contextual memory of the patient's history as well.
+        </p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-number">68%</div>
+        <div class="stat-label">Rural Population</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">31%</div>
+        <div class="stat-label">Physicians in Rural Areas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">39%</div>
+        <div class="stat-label">Nurses in Workforce</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number">307+</div>
+        <div class="stat-label">Clinical Consultations</div>
+      </div>
+    </div>
+
+    <!-- Workflow Diagram -->
+    <div class="workflow-container">
+      <h3 style="text-align:center; font-size:22px; font-weight:700; color:var(--gray-900); margin-bottom:32px;">How NurseAI Works</h3>
+      <svg class="workflow-svg" viewBox="0 0 880 520" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background -->
+        <rect x="0" y="0" width="880" height="520" rx="16" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+
+        <!-- Step 1: Nurse Records -->
+        <rect x="40" y="200" width="140" height="80" rx="12" fill="#007AFF" stroke="none"/>
+        <text x="110" y="234" text-anchor="middle" fill="white" font-size="13" font-weight="600" font-family="Inter,system-ui,sans-serif">Nurse Records</text>
+        <text x="110" y="254" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="12" font-family="Inter,system-ui,sans-serif">Audio Interview</text>
+
+        <!-- Arrow 1 -->
+        <line x1="180" y1="240" x2="220" y2="240" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 2: Upload & Process -->
+        <rect x="220" y="200" width="140" height="80" rx="12" fill="white" stroke="#e2e8f0" stroke-width="1.5"/>
+        <text x="290" y="234" text-anchor="middle" fill="#334155" font-size="13" font-weight="600" font-family="Inter,system-ui,sans-serif">Upload &amp; Process</text>
+        <text x="290" y="254" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,system-ui,sans-serif">AWS + Supabase</text>
+
+        <!-- Arrow 2 -->
+        <line x1="360" y1="240" x2="400" y2="240" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 3: Gemini AI -->
+        <rect x="400" y="192" width="150" height="96" rx="14" fill="#fff7ed" stroke="#fb923c" stroke-width="1.5"/>
+        <text x="475" y="230" text-anchor="middle" fill="#c2410c" font-size="14" font-weight="700" font-family="Inter,system-ui,sans-serif">Gemini AI</text>
+        <text x="475" y="250" text-anchor="middle" fill="#ea580c" font-size="11" font-family="Inter,system-ui,sans-serif">Clinical Analysis</text>
+        <text x="475" y="268" text-anchor="middle" fill="#ea580c" font-size="11" font-family="Inter,system-ui,sans-serif">+ Diagnosis</text>
+
+        <!-- Arrow 3 -->
+        <line x1="550" y1="240" x2="590" y2="240" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 4: Clarifying Questions -->
+        <rect x="590" y="200" width="140" height="80" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+        <text x="660" y="230" text-anchor="middle" fill="#166534" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">Clarifying</text>
+        <text x="660" y="248" text-anchor="middle" fill="#166534" font-size="12" font-weight="600" font-family="Inter,system-ui,sans-serif">Questions</text>
+        <text x="660" y="268" text-anchor="middle" fill="#22c55e" font-size="10" font-family="Inter,system-ui,sans-serif">Nurse Responds</text>
+
+        <!-- Arrow 4 down -->
+        <line x1="660" y1="280" x2="660" y2="340" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 5: Final Prescription -->
+        <rect x="570" y="340" width="180" height="80" rx="12" fill="#007AFF" stroke="none"/>
+        <text x="660" y="374" text-anchor="middle" fill="white" font-size="13" font-weight="600" font-family="Inter,system-ui,sans-serif">Final Prescription</text>
+        <text x="660" y="394" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="11" font-family="Inter,system-ui,sans-serif">Management Plan</text>
+
+        <!-- Arrow from Prescription to Dashboard -->
+        <line x1="750" y1="380" x2="790" y2="380" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Step 6: Dashboard -->
+        <rect x="790" y="348" width="70" height="56" rx="10" fill="#f0f7ff" stroke="#007AFF" stroke-width="1.5"/>
+        <text x="825" y="372" text-anchor="middle" fill="#007AFF" font-size="11" font-weight="600" font-family="Inter,system-ui,sans-serif">Nurse</text>
+        <text x="825" y="388" text-anchor="middle" fill="#007AFF" font-size="11" font-weight="600" font-family="Inter,system-ui,sans-serif">Dashboard</text>
+
+        <!-- Proforma Builder (parallel tool) -->
+        <rect x="40" y="60" width="160" height="80" rx="12" fill="#faf5ff" stroke="#c084fc" stroke-width="1.5"/>
+        <text x="120" y="92" text-anchor="middle" fill="#7c3aed" font-size="13" font-weight="600" font-family="Inter,system-ui,sans-serif">Proforma Builder</text>
+        <text x="120" y="112" text-anchor="middle" fill="#a78bfa" font-size="11" font-family="Inter,system-ui,sans-serif">AI Interview Guide</text>
+
+        <!-- Dashed line from Proforma to Nurse -->
+        <line x1="120" y1="140" x2="110" y2="200" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="50" y="175" fill="#7c3aed" font-size="10" font-family="Inter,system-ui,sans-serif">Guides nurse during recording</text>
+
+        <!-- Patient History -->
+        <rect x="340" y="60" width="160" height="80" rx="12" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="420" y="92" text-anchor="middle" fill="#92400e" font-size="13" font-weight="600" font-family="Inter,system-ui,sans-serif">Patient History</text>
+        <text x="420" y="112" text-anchor="middle" fill="#b45309" font-size="11" font-family="Inter,system-ui,sans-serif">Longitudinal Records</text>
+
+        <!-- Dashed line from History to Gemini -->
+        <line x1="420" y1="140" x2="460" y2="192" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="460" y="170" fill="#92400e" font-size="10" font-family="Inter,system-ui,sans-serif">Contextual memory</text>
+
+        <!-- Infrastructure label -->
+        <rect x="40" y="440" width="800" height="52" rx="10" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="440" y="464" text-anchor="middle" fill="#64748b" font-size="12" font-family="Inter,system-ui,sans-serif">
+          Infrastructure: AWS Elastic Beanstalk (Mumbai) &bull; Supabase (Mumbai) &bull; Gemini API &bull; Expo APK Distribution
+        </text>
+        <text x="440" y="482" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,system-ui,sans-serif">
+          Deployed for Birbhum &amp; Purulia districts, West Bengal, India
+        </text>
+
+        <!-- Arrowhead marker -->
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ════ APP PERFORMANCE ════ -->
+  <section class="section" id="performance">
+    <h2 class="section-title">App Performance</h2>
+    <p class="section-subtitle">
+      Validation metrics from 33 real nurse-patient audio recordings. Zero failures. Negligible pipeline overhead.
+    </p>
+    <div class="perf-container">
+      <div class="perf-iframe-wrap">
+        <iframe src="/benchmark/dashboard.html" title="NurseAI Performance Metrics Dashboard" loading="lazy"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ FOOTER ════ -->
+  <footer class="footer" id="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <h3>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17"/></svg>
+          NurseAI
+        </h3>
+        <p>
+          AI-powered clinical decision support for frontline health workers in rural India. Empowering nurses to deliver better healthcare where physicians are scarce.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <a href="mailto:shauryasharma2002@gmail.com">shauryasharma2002@gmail.com</a>
+        <a href="tel:+919319713708">+91 9319713708</a>
+      </div>
+
+      <div class="footer-col">
+        <h4>Address</h4>
+        <p>Kalypso Court,<br/>Jaypee Wish Town,<br/>Noida, 201304<br/>India</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      &copy; 2026 NurseAI. All rights reserved.
+    </div>
+  </footer>
+
+  <!-- ════ SCRIPTS ════ -->
+  <script>
+    const track = document.getElementById('carouselTrack');
+    const dotsContainer = document.getElementById('carouselDots');
+    const slides = track.querySelectorAll('.carousel-slide');
+    let current = 0;
+    let autoTimer;
+
+    // Build dots
+    slides.forEach((_, i) => {
+      const dot = document.createElement('button');
+      dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+      dot.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+      dot.onclick = () => goTo(i);
+      dotsContainer.appendChild(dot);
+    });
+
+    function goTo(idx) {
+      current = ((idx % slides.length) + slides.length) % slides.length;
+      track.style.transform = 'translateX(-' + (current * 100) + '%)';
+      dotsContainer.querySelectorAll('.carousel-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === current);
+      });
+      resetAuto();
+    }
+
+    function moveCarousel(dir) {
+      goTo(current + dir);
+    }
+
+    function resetAuto() {
+      clearInterval(autoTimer);
+      autoTimer = setInterval(() => goTo(current + 1), 4000);
+    }
+
+    resetAuto();
+
+    // Swipe support
+    let startX = 0;
+    track.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive: true});
+    track.addEventListener('touchend', e => {
+      const diff = startX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 50) moveCarousel(diff > 0 ? 1 : -1);
+    }, {passive: true});
+  </script>
+
+</body>
+</html>

@@ -22,6 +22,16 @@ const editPromptButton = document.getElementById('editPrompt');
 const savePromptButton = document.getElementById('savePrompt');
 const audioPlayer = document.getElementById('audioPlayer');
 const audioMeta = document.getElementById('audioMeta');
+const metricsView = document.getElementById('metricsView');
+const metricsAudioFiles = document.getElementById('metricsAudioFiles');
+const metricsPatientId = document.getElementById('metricsPatientId');
+const runAudioMetricsBtn = document.getElementById('runAudioMetrics');
+const audioMetricsStatus = document.getElementById('audioMetricsStatus');
+const metricsSymptoms = document.getElementById('metricsSymptoms');
+const runProformaMetricsBtn = document.getElementById('runProformaMetrics');
+const proformaMetricsStatus = document.getElementById('proformaMetricsStatus');
+const metricsSummary = document.getElementById('metricsSummary');
+const metricsTableBody = document.getElementById('metricsTableBody');
 
 let suggestions = [];
 
@@ -332,6 +342,7 @@ loginButton.addEventListener('click', async () => {
   updateTokenStatus();
   loginView.classList.add('hidden');
   appView.classList.remove('hidden');
+  metricsView.classList.remove('hidden');
   console.debug('[benchmark] switching views');
   await loadBenchmarkPrompt();
   await fetchSuggestions();
@@ -339,3 +350,227 @@ loginButton.addEventListener('click', async () => {
 });
 
 updateTokenStatus();
+
+// ── Metrics Testing ──────────────────────────────────────────────
+
+let allMetricsRows = [];
+
+function renderMetricsSummary(audioSummary, proformaSummary) {
+  metricsSummary.innerHTML = '';
+  const cards = [];
+
+  if (audioSummary) {
+    cards.push(
+      {label: 'Avg Direct Latency', value: `${audioSummary.directAvgMs} ms`},
+      {label: 'Avg Pipeline Latency', value: `${audioSummary.pipelineAvgMs} ms`},
+      {label: 'Avg Overhead', value: `${audioSummary.overheadAvgMs} ms`},
+      {label: 'Direct Failures', value: audioSummary.directFailures},
+      {label: 'Pipeline Failures', value: audioSummary.pipelineFailures},
+      {label: 'Total Files', value: audioSummary.totalFiles},
+    );
+  }
+
+  if (proformaSummary) {
+    cards.push(
+      {label: 'Avg Proforma Latency', value: `${proformaSummary.avgLatencyMs} ms`},
+      {label: 'Proforma Failures', value: proformaSummary.failures},
+      {label: 'Total Symptoms', value: proformaSummary.totalSymptoms},
+    );
+  }
+
+  cards.forEach((c) => {
+    const div = document.createElement('div');
+    div.className = 'score-card';
+    div.innerHTML = `<strong>${c.value}</strong><span>${c.label}</span>`;
+    metricsSummary.appendChild(div);
+  });
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '-';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function formatDuration(sec) {
+  if (!sec) return '-';
+  const mins = Math.floor(sec / 60);
+  const secs = Math.round(sec % 60);
+  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+}
+
+function renderMetricsTable() {
+  metricsTableBody.innerHTML = '';
+
+  allMetricsRows.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid var(--border)';
+
+    const isFail = row.status === 'FAIL';
+    if (isFail) tr.style.background = '#fef2f2';
+
+    tr.innerHTML = `
+      <td style="padding:8px;">${idx + 1}</td>
+      <td style="padding:8px;">${formatFileSize(row.fileSize)}</td>
+      <td style="padding:8px;">${formatDuration(row.durationSec)}</td>
+      <td style="padding:8px;">${row.directLatency}</td>
+      <td style="padding:8px;">${row.pipelineLatency}</td>
+      <td style="padding:8px;">${row.overhead}</td>
+      <td style="padding:8px;font-weight:600;color:${isFail ? 'var(--danger)' : '#16a34a'};">${row.status}</td>
+      <td style="padding:8px;color:var(--danger);font-size:12px;">${row.error || ''}</td>
+    `;
+    metricsTableBody.appendChild(tr);
+  });
+}
+
+runAudioMetricsBtn.addEventListener('click', async () => {
+  const password = getPassword();
+  if (!password) {
+    alert('Please log in first.');
+    return;
+  }
+  const files = metricsAudioFiles.files;
+  if (!files || files.length === 0) {
+    alert('Select at least one audio file.');
+    return;
+  }
+
+  runAudioMetricsBtn.disabled = true;
+  allMetricsRows = allMetricsRows.filter((r) => r.type !== 'audio');
+
+  const allResults = [];
+  let failures = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    audioMetricsStatus.textContent = `Processing file ${i + 1} of ${files.length}: ${files[i].name}...`;
+
+    const formData = new FormData();
+    formData.append('files', files[i]);
+
+    try {
+      const resp = await fetch('/api/benchmark/metrics', {
+        method: 'POST',
+        headers: {'x-benchmark-password': password},
+        body: formData,
+      });
+      const data = await resp.json();
+      if (!data.success) {
+        allMetricsRows.push({
+          type: 'audio', fileSize: files[i].size, durationSec: 0,
+          directLatency: '-', pipelineLatency: '-', overhead: '-',
+          status: 'FAIL', error: data.error || 'Request failed',
+        });
+        failures++;
+        renderMetricsTable();
+        continue;
+      }
+
+      const fileResult = data.data.results[0];
+      allResults.push(fileResult);
+
+      const directOk = fileResult.directGemini.success;
+      const pipeOk = fileResult.fullPipeline.success;
+      allMetricsRows.push({
+        type: 'audio',
+        fileSize: fileResult.fileSize || 0,
+        durationSec: fileResult.durationSec || 0,
+        directLatency: directOk ? `${fileResult.directGemini.latencyMs} ms` : '-',
+        pipelineLatency: pipeOk ? `${fileResult.fullPipeline.latencyMs} ms` : '-',
+        overhead: (directOk && pipeOk) ? `${fileResult.fullPipeline.latencyMs - fileResult.directGemini.latencyMs} ms` : '-',
+        status: (directOk && pipeOk) ? 'OK' : 'FAIL',
+        error: fileResult.directGemini.error || fileResult.fullPipeline.error || '',
+      });
+      if (!directOk || !pipeOk) failures++;
+
+      renderMetricsTable();
+    } catch (err) {
+      allMetricsRows.push({
+        type: 'audio', fileSize: files[i].size, durationSec: 0,
+        directLatency: '-', pipelineLatency: '-', overhead: '-',
+        status: 'FAIL', error: err.message,
+      });
+      failures++;
+      renderMetricsTable();
+    }
+  }
+
+  const directLats = allResults.filter((r) => r.directGemini.success).map((r) => r.directGemini.latencyMs);
+  const pipeLats = allResults.filter((r) => r.fullPipeline.success).map((r) => r.fullPipeline.latencyMs);
+  const avg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+  renderMetricsSummary({
+    totalFiles: files.length,
+    directAvgMs: avg(directLats),
+    pipelineAvgMs: avg(pipeLats),
+    overheadAvgMs: avg(pipeLats) - avg(directLats),
+    directFailures: allResults.filter((r) => !r.directGemini.success).length + failures,
+    pipelineFailures: allResults.filter((r) => !r.fullPipeline.success).length + failures,
+  }, null);
+
+  audioMetricsStatus.textContent = `Done. ${files.length} file(s) processed, ${failures} failure(s).`;
+  runAudioMetricsBtn.disabled = false;
+});
+
+runProformaMetricsBtn.addEventListener('click', async () => {
+  const password = getPassword();
+  if (!password) {
+    alert('Please log in first.');
+    return;
+  }
+  const raw = metricsSymptoms.value.trim();
+  if (!raw) {
+    alert('Enter at least one symptom line.');
+    return;
+  }
+
+  const symptoms = raw.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (symptoms.length === 0) {
+    alert('Enter at least one symptom line.');
+    return;
+  }
+
+  runProformaMetricsBtn.disabled = true;
+  proformaMetricsStatus.textContent = `Processing ${symptoms.length} symptom set(s)...`;
+
+  try {
+    const resp = await fetch('/api/benchmark/metrics-proforma', {
+      method: 'POST',
+      headers: {
+        'x-benchmark-password': password,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({symptoms}),
+    });
+    const data = await resp.json();
+    if (!data.success) {
+      proformaMetricsStatus.textContent = `Error: ${data.error}`;
+      runProformaMetricsBtn.disabled = false;
+      return;
+    }
+
+    const {results: proResults, summary} = data.data;
+
+    allMetricsRows = allMetricsRows.filter((r) => r.type !== 'proforma');
+
+    proResults.forEach((r) => {
+      allMetricsRows.push({
+        type: 'proforma',
+        fileSize: 0,
+        durationSec: 0,
+        directLatency: '-',
+        pipelineLatency: r.success ? `${r.latencyMs} ms` : '-',
+        overhead: '-',
+        status: r.success ? 'OK' : 'FAIL',
+        error: r.error || '',
+      });
+    });
+
+    renderMetricsTable();
+    renderMetricsSummary(null, summary);
+    proformaMetricsStatus.textContent = `Done. ${proResults.length} symptom set(s) processed.`;
+  } catch (err) {
+    proformaMetricsStatus.textContent = `Network error: ${err.message}`;
+  }
+  runProformaMetricsBtn.disabled = false;
+});

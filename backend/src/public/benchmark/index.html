@@ -320,6 +320,64 @@
           <div class="notice">Applies only to benchmark runs (does not change app prompt).</div>
         </aside>
       </div>
+
+      <div id="metricsView" class="hidden" style="margin-top:24px;">
+        <div class="card">
+          <div class="section-title">Mass Metrics Testing</div>
+          <p class="muted" style="margin:0 0 16px;">Upload audio files to measure latency (app pipeline vs direct Gemini) and failure rates. Enter symptoms to measure proforma generation latency.</p>
+
+          <div class="row">
+            <div>
+              <label for="metricsAudioFiles">Audio files (select multiple)</label>
+              <input id="metricsAudioFiles" type="file" accept="audio/*,.3gp,.m4a,.mp4,.mp3,.wav,.aac,.ogg,.webm" multiple />
+            </div>
+            <div>
+              <label for="metricsPatientId">Patient ID for test</label>
+              <input id="metricsPatientId" type="text" value="METRICS_TEST" placeholder="Patient ID" />
+            </div>
+          </div>
+          <div class="actions">
+            <button id="runAudioMetrics">Run Audio Metrics</button>
+          </div>
+          <div class="notice" id="audioMetricsStatus"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Proforma Latency Test</div>
+          <label for="metricsSymptoms">Symptoms (one per line)</label>
+          <textarea id="metricsSymptoms" rows="6" placeholder="fever and cough&#10;chest pain and breathlessness&#10;headache and dizziness"></textarea>
+          <div class="actions">
+            <button id="runProformaMetrics">Run Proforma Metrics</button>
+          </div>
+          <div class="notice" id="proformaMetricsStatus"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Summary</div>
+          <div id="metricsSummary" class="scoreboard"></div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">Detailed Results</div>
+          <div style="overflow-x:auto;">
+            <table id="metricsTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="text-align:left;border-bottom:2px solid var(--border);">
+                  <th style="padding:8px;">#</th>
+                  <th style="padding:8px;">Size</th>
+                  <th style="padding:8px;">Duration</th>
+                  <th style="padding:8px;">Direct Latency</th>
+                  <th style="padding:8px;">Pipeline Latency</th>
+                  <th style="padding:8px;">Overhead</th>
+                  <th style="padding:8px;">Status</th>
+                  <th style="padding:8px;">Error</th>
+                </tr>
+              </thead>
+              <tbody id="metricsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script src="./benchmark.js" defer></script>

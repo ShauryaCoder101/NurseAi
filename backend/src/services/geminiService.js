@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-pro';
 const GEMINI_API_BASE_URL =
   process.env.GEMINI_API_BASE_URL ||
-  'https://generativelanguage.googleapis.com/v1';
+  'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_LOG_DIR = path.join(__dirname, '../../logs');
 const GEMINI_LOG_FILE = path.join(GEMINI_LOG_DIR, 'gemini.log');
 const GEMINI_LOG_ENABLED =
@@ -91,7 +92,7 @@ const runGeminiThrottled = (task) => {
   return geminiQueue;
 };
 
-const MODEL_PREFERENCES = ['gemini-2.5-flash-lite'];
+const MODEL_PREFERENCES = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'];
 
 const normalizeModelName = (modelName) => {
   if (!modelName) return null;
@@ -138,6 +139,10 @@ async function resolveModelName() {
   const models = await listModels();
   cachedModelName = pickModelFromList(models);
   return cachedModelName;
+}
+
+function getFallbackModelName() {
+  return normalizeModelName(GEMINI_FALLBACK_MODEL);
 }
 
 const GEMINI_PROMPT = `Role: Clinical Decision Support Assistant for frontline providers in Birbhum, West Bengal.Context: Resource-constrained setting; high out-of-pocket (OOP) sensitivity.  Core Philosophy: * Occam’s Razor: Prioritize a single unifying diagnosis.
@@ -254,19 +259,20 @@ async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
       throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
     }
     if (response.status === 404) {
-      // Try to discover an available model and retry once.
-      const models = await listModels();
-      const fallback = pickModelFromList(models);
+      const fallback = getFallbackModelName();
       if (fallback && fallback !== modelName) {
+        console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
         cachedModelName = fallback;
-        const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
-        response = await fetchWithRetry(retryEndpoint, body);
+        response = await fetchWithRetry(
+          `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+          body
+        );
         if (!response.ok) {
           const retryError = await response.text();
           if (response.status === 429) {
             throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
           }
-          throw new Error(`Gemini API error: ${retryError}`);
+          throw new Error(`Gemini API error (fallback): ${retryError}`);
         }
       } else {
         throw new Error(`Gemini API error: ${errorText}`);
@@ -358,18 +364,20 @@ async function generateGeminiFollowup({previousResponse, followupText, patientId
       throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
     }
     if (response.status === 404) {
-      const models = await listModels();
-      const fallback = pickModelFromList(models);
+      const fallback = getFallbackModelName();
       if (fallback && fallback !== modelName) {
+        console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
         cachedModelName = fallback;
-        const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
-        response = await fetchWithRetry(retryEndpoint, body);
+        response = await fetchWithRetry(
+          `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+          body
+        );
         if (!response.ok) {
           const retryError = await response.text();
           if (response.status === 429) {
             throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
           }
-          throw new Error(`Gemini API error: ${retryError}`);
+          throw new Error(`Gemini API error (fallback): ${retryError}`);
         }
       } else {
         throw new Error(`Gemini API error: ${errorText}`);
@@ -470,10 +478,286 @@ const generateBenchmarkResponse = async ({modelName, promptText}) => {
   });
 };
 
+const DIAGNOSIS_PROMPT = `Role: You are "2Diagnosis," a high-efficiency diagnostic assistant positioned between the initial clinician interview and the final management plan.
+
+Objective: Review clinical transcripts to identify the most likely "bucket" (differential), screen for red flags, and provide high-yield follow-up steps.
+
+Response Structure:
+Clinical Rationale: A 2–3 sentence summary of the case, highlighting the most likely differential and any immediate "red flag" concerns (e.g., CHF, DVT, Sepsis).
+Clarifying Questions: 3–4 high-discriminating questions. Always include the local language translation (e.g., Bengali for rural WB contexts) in parentheses. Focus on "Bucket" differentiation (e.g., Cardiac vs. Renal vs. Anemia).
+Physical Exam & Point-of-Care (POC): Recommend 3–5 specific maneuvers or bedside tests (e.g., JVP, Pitting, Auscultation, Urine Dipstick). Briefly state why each is being requested.
+
+Tone & Style:
+Concise & Scannable: Use bullet points and numbered lists for clarity.
+Action-Oriented: Focus on what the clinician needs to do now to reach a diagnosis.
+Peer-to-Peer: Speak as a supportive, expert colleague, not a textbook.
+
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
+
+Constraint: Do not recommend a full management/treatment plan. Your role ends at the diagnostic and investigative recommendations.`;
+
+const PRESCRIPTION_PROMPT = `Role & Context
+You are "3Prescription," the final stage of a clinical decision-support workflow designed for Nurse Practitioners and medical students in rural West Bengal. Your objective is to synthesize the initial screening (from 1Proforma) and the diagnostic clarifications (from 2Diagnosis) into a pragmatic, tiered management plan. You prioritize patient safety and resource stewardship over exhaustive diagnostic certainty.
+
+Core Management Priorities
+When formulating your plan, you must adhere to these priorities in order:
+Triage & Escalation: Immediately identify if there is a high probability of a high-risk clinical event. If so, adopt a "Stabilize and Transfer" approach.
+Clinical Supervision: Explicitly flag the need for a supervising doctor if advanced/costly tests or potentially toxic treatments (e.g., specific antibiotics, high-risk cardiac meds) are indicated.
+Symptom Relief: Prioritize the patient's immediate comfort and functional status.
+Pragmatic Diagnostics: Suggest tests only if they inform feasible treatment. It is not essential to reach a final diagnosis if the process is too costly, complicated, or risky for the patient.
+Tiered Investigations: * Tier 1: Easy, cheap, reliable tests to rule in common local diagnoses (e.g., Anemia, GERD, Dehydration) or rule out "do-not-miss" conditions.
+Tier 2: Expensive or specialized tests recommended only if Tier 1 is negative and the patient is referred to a supervising doctor.
+Safety Netting: Clearly define the follow-up timeline and "Return Precautions" using local terminology.
+
+Operational Guidelines & Tool Call Protocol
+1. Guideline & Evidence Validation
+Before finalizing the management plan, you must use the search tool to verify that recommendations align with the following hierarchy of authority:
+Local/State: West Bengal Health & Family Welfare Department (WBHFW) protocols (especially for endemic diseases like Malaria, Dengue, or Japanese Encephalitis).
+National: Government of India (GoI) Ministry of Health (MoHFW) or ICMR (Indian Council of Medical Research) guidelines.
+Global (Backup): WHO or UpToDate guidelines if local/national ones are unavailable.
+Specific Search Triggers:
+Red Flags: If a "Do-Not-Miss" diagnosis is suspected (e.g., Scrub Typhus), search for: "ICMR treatment guidelines for [Condition] 2024-2026 India."
+Public Health: If suggesting a public health notification disease, search for: "West Bengal health department reporting protocol for [Condition]."
+Referrals: If suggesting a referral, search for: "Referral criteria for [Condition] West Bengal government hospitals."
+2. Step-by-Step Tool Verification Protocol
+To prevent hallucination, follow these internal steps before finalizing any recommendation:
+Search & Extract: When you perform a tool call, explicitly identify the source (e.g., "According to the ICMR 2024 PDF snippet...").
+Cross-Check: Compare tool results against internal knowledge. If there is a conflict (e.g., training data suggests one dose, but the 2026 search result suggests another), default to the 2026 search result but note the change.
+The "Zero-Tolerance" Rule: If a search result is vague or doesn't specify a dosage, DO NOT GUESS. Instead, state: "Current localized dosage guidelines were not found; consult a supervising doctor before prescribing [Medication]."
+Prohibit "Ghost Citations": Never mention a guideline (e.g., "Per WBHFW guidelines...") unless you have successfully retrieved it via the search tool in the current session.
+3. Context & Language
+Temporality: Always consider the current date (it is 2026) and seasonal peaks (e.g., monsoon-related illnesses like Malaria or Scrub Typhus).
+Bilingual Bridge: Maintain a dual-language approach. Use English for clinical sections and simple English with Bengali vernacular for patient education.
+Tone: Authentic, supportive, and peer-to-peer.
+
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
+
+Output Format
+1) Prescription
+Disposition: State clearly if this is "Local Management" or "Stabilize and Transfer."
+Diagnostic Tests: List as Tier 1 (Immediate/Low Cost) and Tier 2 (Referral/Advanced).
+Medications: List name, dosage, frequency, and duration.
+Advice: Specific instructions on Diet and Activity relevant to the local context (e.g., field work, local water sources).
+Follow-up: Provide a specific date or timeframe for the next check-in.
+Return Precautions (Red Flags): List critical symptoms requiring immediate return, using Bengali descriptors (e.g., Buk-e-bhaar for chest heaviness).
+2) Patient Education (in Bengali)
+Language: This section must be written in Bengali (the local vernacular) using simple, high-yield terms.
+Content:
+Most Likely Diagnosis: Use broad, understandable categories.
+The Plan: What the treatment is and what the patient needs to do.
+Prognosis: What to expect in the coming days.
+When to Worry: Simplified return precautions using local descriptors.
+
+Verification Output Requirement
+At the very end of your response, include this "Source Validation" footer:
+Source Validation:
+Guideline used: [Name of guideline retrieved via tool]
+Last Verified: [Date/Year from the search result]
+Confidence Level: [High/Medium/Low based on search match]`;
+
+async function generateDiagnosisFromAudio({audioPath, mimeType, patientId}) {
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
+
+    const audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
+    const prompt = `${DIAGNOSIS_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {text: prompt},
+            {inlineData: {mimeType, data: audioBase64}},
+          ],
+        },
+      ],
+    };
+
+    const modelName = await resolveModelName();
+    if (!modelName) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    let response = await fetchWithRetry(endpoint, body);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      }
+      if (response.status === 404) {
+        const fallback = getFallbackModelName();
+        if (fallback && fallback !== modelName) {
+          console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
+          cachedModelName = fallback;
+          response = await fetchWithRetry(
+            `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+            body
+          );
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+            }
+            throw new Error(`Gemini API error (fallback): ${retryError}`);
+          }
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    }
+
+    const data = await response.json();
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+
+    return text.trim();
+  });
+}
+
+async function generatePrescription({diagnosisText, answerAudioPath, answerMimeType, patientId}) {
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
+    const resolvedModel = await resolveModelName();
+    if (!resolvedModel) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const combinedPrompt = `${PRESCRIPTION_PROMPT}
+
+--- Context from 2Diagnosis ---
+${diagnosisText}
+
+Patient ID: ${patientId || 'Unknown'}
+
+The attached audio contains the nurse's verbal answers to the clarifying questions from the 2Diagnosis stage. Based on the diagnosis assessment and the nurse's audio answers, provide the final management plan.`;
+
+    const answerBase64 = fs.readFileSync(answerAudioPath, {encoding: 'base64'});
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {text: combinedPrompt},
+            {inlineData: {mimeType: answerMimeType || 'audio/mp4', data: answerBase64}},
+          ],
+        },
+      ],
+    };
+
+    let response = await fetchWithRetry(endpoint, body);
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      }
+      if (response.status === 404) {
+        const fallback = getFallbackModelName();
+        if (fallback && fallback !== resolvedModel) {
+          console.log(`Primary model ${resolvedModel} not found, trying fallback ${fallback}`);
+          cachedModelName = fallback;
+          response = await fetchWithRetry(
+            `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+            body
+          );
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+            }
+            throw new Error(`Gemini API error (fallback): ${retryError}`);
+          }
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    }
+
+    const data = await response.json();
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+    return text.trim();
+  });
+}
+
+async function generateProformaResponse({promptText}) {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+  const resolvedModel = await resolveModelName();
+  if (!resolvedModel) {
+    throw new Error('No compatible Gemini model found for generateContent.');
+  }
+
+  const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
+  const body = {
+    contents: [{role: 'user', parts: [{text: promptText}]}],
+  };
+
+  let response = await fetchWithRetry(endpoint, body);
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status === 429) {
+      throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+    }
+    if (response.status === 404) {
+      const fallback = getFallbackModelName();
+      if (fallback && fallback !== resolvedModel) {
+        console.log(`Primary model ${resolvedModel} not found, trying fallback ${fallback}`);
+        cachedModelName = fallback;
+        response = await fetchWithRetry(
+          `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+          body
+        );
+        if (!response.ok) {
+          const retryError = await response.text();
+          if (response.status === 429) {
+            throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+          }
+          throw new Error(`Gemini API error (fallback): ${retryError}`);
+        }
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    } else {
+      throw new Error(`Gemini API error: ${errorText}`);
+    }
+  }
+
+  const data = await response.json();
+  const text =
+    data?.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter(Boolean)
+      .join('\n') || '';
+  return text.trim();
+}
+
 module.exports = {
   generateGeminiSuggestion,
   generateGeminiFollowup,
   generateBenchmarkResponse,
+  generateProformaResponse,
+  generateDiagnosisFromAudio,
+  generatePrescription,
   getBenchmarkPrompt: () => GEMINI_PROMPT,
   generateBenchmarkAudio: async ({audioPath, audioUrl, mimeType, patientId, modelName, promptText}) => {
     return runGeminiThrottled(async () => {
@@ -527,11 +811,14 @@ module.exports = {
       if (!response.ok) {
         const errorText = await response.text();
         if (response.status === 404) {
-          const models = await listModels();
-          const fallback = pickModelFromList(models);
+          const fallback = getFallbackModelName();
           if (fallback && fallback !== resolvedModel) {
-            const retryEndpoint = `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`;
-            response = await fetchWithRetry(retryEndpoint, body);
+            console.log(`Primary model ${resolvedModel} not found, trying fallback ${fallback}`);
+            cachedModelName = fallback;
+            response = await fetchWithRetry(
+              `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+              body
+            );
             if (!response.ok) {
               const retryError = await response.text();
               if (response.status === 429) {
@@ -540,7 +827,7 @@ module.exports = {
                   parseRetryAfterMs(response)
                 );
               }
-              throw new Error(`Gemini API error: ${retryError}`);
+              throw new Error(`Gemini API error (fallback): ${retryError}`);
             }
           } else {
             throw new Error(`Gemini API error: ${errorText}`);

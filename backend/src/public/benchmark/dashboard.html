@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NurseAI - System Performance Metrics Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #1a1a2e;
+      line-height: 1.6;
+    }
+    .dashboard {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 32px 64px;
+    }
+    .dashboard-title {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+      letter-spacing: -0.3px;
+    }
+    .dashboard-subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .section {
+      margin-bottom: 48px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #1a1a2e;
+    }
+    .section-desc {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 16px;
+    }
+    .chart-container {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 24px 16px 16px;
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+    .kpi-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .kpi-label {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .kpi-unit {
+      font-size: 14px;
+      font-weight: 400;
+      color: #6b7280;
+    }
+    .reliability-card {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .reliability-card .check-icon {
+      width: 36px;
+      height: 36px;
+      background: #22c55e;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .reliability-card .check-icon svg {
+      width: 20px;
+      height: 20px;
+      stroke: white;
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .reliability-text .big {
+      font-size: 22px;
+      font-weight: 700;
+      color: #15803d;
+    }
+    .reliability-text .small {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .arch-container {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 32px 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .summary-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.7;
+    }
+    .summary-box strong { color: #1a1a2e; }
+    .table-section { overflow-x: auto; }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    table.data-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid #1a1a2e;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #374151;
+    }
+    table.data-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    table.data-table tr:hover { background: #fafafa; }
+    .pos { color: #dc2626; }
+    .neg { color: #16a34a; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
+  <script src="https://unpkg.com/recharts@2.15.0/umd/Recharts.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.0/babel.min.js" crossorigin></script>
+
+  <script type="text/babel">
+    const {
+      BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+      ReferenceLine, ResponsiveContainer, Cell
+    } = Recharts;
+
+    const DATA = [
+      {id:1,  sizeMB:3.23,  durSec:362, directMs:10600, pipelineMs:9595},
+      {id:2,  sizeMB:8.01,  durSec:413, directMs:7788,  pipelineMs:11442},
+      {id:3,  sizeMB:8.17,  durSec:314, directMs:10690, pipelineMs:12084},
+      {id:4,  sizeMB:14.49, durSec:623, directMs:10803, pipelineMs:9504},
+      {id:5,  sizeMB:5.03,  durSec:281, directMs:10853, pipelineMs:11334},
+      {id:6,  sizeMB:9.43,  durSec:411, directMs:11663, pipelineMs:10730},
+      {id:7,  sizeMB:5.24,  durSec:228, directMs:6649,  pipelineMs:6731},
+      {id:8,  sizeMB:3.15,  durSec:288, directMs:10222, pipelineMs:10984},
+      {id:9,  sizeMB:5.73,  durSec:252, directMs:7600,  pipelineMs:9642},
+      {id:10, sizeMB:3.41,  durSec:367, directMs:11281, pipelineMs:7644},
+      {id:11, sizeMB:3.44,  durSec:305, directMs:9712,  pipelineMs:8822},
+      {id:12, sizeMB:2.18,  durSec:527, directMs:11500, pipelineMs:12124},
+      {id:13, sizeMB:10.78, durSec:438, directMs:8265,  pipelineMs:11858},
+      {id:14, sizeMB:1.71,  durSec:498, directMs:9783,  pipelineMs:14563},
+      {id:15, sizeMB:6.03,  durSec:292, directMs:9860,  pipelineMs:11556},
+      {id:16, sizeMB:4.28,  durSec:192, directMs:9277,  pipelineMs:9129},
+      {id:17, sizeMB:7.24,  durSec:318, directMs:12668, pipelineMs:12106},
+      {id:18, sizeMB:9.17,  durSec:399, directMs:10798, pipelineMs:12532},
+      {id:19, sizeMB:3.42,  durSec:412, directMs:14239, pipelineMs:11442},
+      {id:20, sizeMB:3.87,  durSec:492, directMs:11842, pipelineMs:11903},
+      {id:21, sizeMB:10.32, durSec:437, directMs:11748, pipelineMs:11770},
+      {id:22, sizeMB:5.48,  durSec:374, directMs:10867, pipelineMs:11710},
+      {id:23, sizeMB:8.45,  durSec:477, directMs:14088, pipelineMs:12095},
+      {id:24, sizeMB:9.81,  durSec:852, directMs:15494, pipelineMs:11486},
+      {id:25, sizeMB:9.77,  durSec:427, directMs:11115, pipelineMs:11430},
+      {id:26, sizeMB:4.53,  durSec:297, directMs:12870, pipelineMs:8417},
+      {id:27, sizeMB:12.51, durSec:485, directMs:9100,  pipelineMs:11712},
+      {id:28, sizeMB:10.00, durSec:441, directMs:10065, pipelineMs:11355},
+      {id:29, sizeMB:3.85,  durSec:387, directMs:10668, pipelineMs:8773},
+      {id:30, sizeMB:6.71,  durSec:293, directMs:8833,  pipelineMs:7636},
+      {id:31, sizeMB:3.85,  durSec:252, directMs:11172, pipelineMs:6879},
+      {id:32, sizeMB:4.89,  durSec:148, directMs:11452, pipelineMs:8179},
+      {id:33, sizeMB:7.08,  durSec:465, directMs:10670, pipelineMs:12693},
+    ];
+
+    const enriched = DATA.map(d => ({
+      ...d,
+      overheadMs: d.pipelineMs - d.directMs,
+      label: `#${d.id}`,
+    }));
+
+    const avg = arr => Math.round(arr.reduce((a,b) => a+b, 0) / arr.length);
+    const median = arr => {
+      const s = [...arr].sort((a,b) => a-b);
+      const m = Math.floor(s.length/2);
+      return s.length % 2 ? s[m] : Math.round((s[m-1]+s[m])/2);
+    };
+
+    const directArr  = enriched.map(d => d.directMs);
+    const pipeArr    = enriched.map(d => d.pipelineMs);
+    const ohArr      = enriched.map(d => d.overheadMs);
+    const fasterCount = ohArr.filter(v => v < 0).length;
+    const slowerCount = ohArr.filter(v => v > 0).length;
+
+    const stats = {
+      avgDirect: avg(directArr),
+      avgPipeline: avg(pipeArr),
+      avgOverhead: avg(ohArr),
+      medianOverhead: median(ohArr),
+      fasterCount,
+      slowerCount,
+    };
+
+    const BLUE = "#4A6FA5";
+    const AMBER = "#D4A84B";
+    const GREEN = "#22c55e";
+    const RED = "#ef4444";
+
+    const customTooltipStyle = {
+      background: '#fff', border: '1px solid #e5e7eb',
+      borderRadius: 6, padding: '8px 12px', fontSize: 12,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    };
+
+    function LatencyTooltip({active, payload, label}) {
+      if (!active || !payload?.length) return null;
+      return (
+        <div style={customTooltipStyle}>
+          <div style={{fontWeight:600, marginBottom:4}}>File {label}</div>
+          {payload.map((p,i) => (
+            <div key={i} style={{color: p.color}}>
+              {p.name}: {p.value.toLocaleString()} ms
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function OverheadTooltip({active, payload, label}) {
+      if (!active || !payload?.length) return null;
+      const v = payload[0].value;
+      return (
+        <div style={customTooltipStyle}>
+          <div style={{fontWeight:600, marginBottom:4}}>File {label}</div>
+          <div style={{color: v < 0 ? GREEN : RED}}>
+            Overhead: {v > 0 ? '+' : ''}{v.toLocaleString()} ms
+            {v < 0 ? ' (pipeline faster)' : v > 0 ? ' (pipeline slower)' : ''}
+          </div>
+        </div>
+      );
+    }
+
+    function KPICards() {
+      return (
+        <div className="kpi-row">
+          <div className="kpi-card">
+            <div className="kpi-value">{stats.avgDirect.toLocaleString()} <span className="kpi-unit">ms</span></div>
+            <div className="kpi-label">Avg Direct Latency</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-value">{stats.avgPipeline.toLocaleString()} <span className="kpi-unit">ms</span></div>
+            <div className="kpi-label">Avg Pipeline Latency</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-value" style={{color: stats.avgOverhead < 0 ? '#16a34a' : '#dc2626'}}>
+              {stats.avgOverhead > 0 ? '+' : ''}{stats.avgOverhead.toLocaleString()} <span className="kpi-unit">ms</span>
+            </div>
+            <div className="kpi-label">Avg Overhead</div>
+          </div>
+          <div className="reliability-card">
+            <div className="check-icon">
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+            <div className="reliability-text">
+              <div className="big">100% Success</div>
+              <div className="small">0 Errors across {DATA.length} files</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function LatencyChart() {
+      return (
+        <div className="section">
+          <div className="section-title">Figure 1: Direct vs. Pipeline Latency Comparison</div>
+          <div className="section-desc">Grouped bar chart comparing Gemini API latency (direct call) against the full application pipeline latency for each audio file (n={DATA.length}).</div>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={enriched} barGap={1} barCategoryGap="18%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="id" tick={{fontSize:10, fill:'#6b7280'}} label={{value:'File #', position:'insideBottomRight', offset:-4, fontSize:11, fill:'#374151'}} />
+                <YAxis tick={{fontSize:10, fill:'#6b7280'}} label={{value:'Latency (ms)', angle:-90, position:'insideLeft', offset:10, fontSize:11, fill:'#374151'}} />
+                <Tooltip content={<LatencyTooltip />} />
+                <Legend verticalAlign="top" height={36} iconType="square" wrapperStyle={{fontSize:12}} />
+                <Bar dataKey="directMs" name="Direct Latency" fill={BLUE} radius={[2,2,0,0]} />
+                <Bar dataKey="pipelineMs" name="Pipeline Latency" fill={AMBER} radius={[2,2,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    }
+
+    function OverheadChart() {
+      return (
+        <div className="section">
+          <div className="section-title">Figure 2: Pipeline Overhead Analysis (Delta Plot)</div>
+          <div className="section-desc">
+            Per-file overhead (Pipeline Latency - Direct Latency). Green bars indicate the pipeline was faster; red bars indicate additional overhead.
+          </div>
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={enriched} barCategoryGap="18%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="id" tick={{fontSize:10, fill:'#6b7280'}} label={{value:'File #', position:'insideBottomRight', offset:-4, fontSize:11, fill:'#374151'}} />
+                <YAxis tick={{fontSize:10, fill:'#6b7280'}} label={{value:'Overhead (ms)', angle:-90, position:'insideLeft', offset:10, fontSize:11, fill:'#374151'}} />
+                <Tooltip content={<OverheadTooltip />} />
+                <ReferenceLine y={0} stroke="#1a1a2e" strokeWidth={1.5} strokeDasharray="4 3" label={{value:'y = 0', position:'right', fontSize:10, fill:'#6b7280'}} />
+                <Bar dataKey="overheadMs" name="Overhead">
+                  {enriched.map((d, i) => (
+                    <Cell key={i} fill={d.overheadMs < 0 ? GREEN : RED} radius={[2,2,0,0]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+    }
+
+    function ArchDiagram() {
+      const W = 880, H = 320;
+      const boxStyle = (x,y,w,h,fill='#ffffff',stroke='#d1d5db') => ({x,y,width:w,height:h,rx:6,fill,stroke,strokeWidth:1.2});
+      const textStyle = (x,y,size=11,weight=400,fill='#374151') => ({x,y,fontSize:size,fontWeight:weight,fill,textAnchor:'middle',dominantBaseline:'central',fontFamily:'Inter,system-ui,sans-serif'});
+      const arrow = (x1,y1,x2,y2) => (
+        <g key={`${x1}-${y1}-${x2}-${y2}`}>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#9ca3af" strokeWidth={1.2} markerEnd="url(#arrowhead)" />
+        </g>
+      );
+      return (
+        <div className="section">
+          <div className="section-title">Figure 3: System Architecture -- Dual-Path Processing</div>
+          <div className="section-desc">High-level architectural diagram showing the Direct Path (pure API call) and the Full Pipeline Path (application orchestrator).</div>
+          <div className="arch-container">
+            <svg viewBox={`0 0 ${W} ${H}`} width={W} style={{maxWidth:'100%',height:'auto'}}>
+              <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill="#9ca3af" />
+                </marker>
+              </defs>
+
+              {/* Audio File Source */}
+              <rect {...boxStyle(20, 130, 120, 50, '#f0f4ff', '#4A6FA5')} />
+              <text {...textStyle(80, 150, 12, 600, '#4A6FA5')}>Audio File</text>
+              <text {...textStyle(80, 165, 9, 400, '#6b7280')}>(.m4a / .mp3)</text>
+
+              {/* Direct Path Label */}
+              <rect {...boxStyle(190, 30, 80, 24, '#eef2ff', '#4A6FA5')} />
+              <text {...textStyle(230, 42, 10, 600, '#4A6FA5')}>Direct Path</text>
+
+              {/* Direct: Base64 Encode */}
+              <rect {...boxStyle(300, 26, 130, 36)} />
+              <text {...textStyle(365, 44, 11)}>Base64 Encode</text>
+
+              {/* Direct: Gemini API */}
+              <rect {...boxStyle(480, 26, 130, 36, '#fef3c7', '#D4A84B')} />
+              <text {...textStyle(545, 44, 11, 600, '#92400e')}>Gemini API</text>
+
+              {/* Direct: Response */}
+              <rect {...boxStyle(660, 26, 120, 36, '#f0fdf4', '#22c55e')} />
+              <text {...textStyle(720, 44, 11, 600, '#15803d')}>AI Response</text>
+
+              {/* Arrows for Direct Path */}
+              {arrow(140, 140, 220, 44)}
+              {arrow(270, 42, 298, 42)}
+              {arrow(432, 42, 478, 42)}
+              {arrow(612, 42, 658, 42)}
+
+              {/* Pipeline Path Label */}
+              <rect {...boxStyle(190, 110, 100, 24, '#fef2f2', '#dc2626')} />
+              <text {...textStyle(240, 122, 10, 600, '#dc2626')}>Pipeline Path</text>
+
+              {/* Pipeline Orchestrator */}
+              <rect {...boxStyle(190, 150, 130, 50, '#fafafa', '#6b7280')} rx="6" strokeDasharray="4 2" />
+              <text {...textStyle(255, 168, 10, 600, '#374151')}>Pipeline</text>
+              <text {...textStyle(255, 182, 10, 600, '#374151')}>Orchestrator</text>
+
+              {/* Pipeline: File Copy */}
+              <rect {...boxStyle(360, 110, 110, 32)} />
+              <text {...textStyle(415, 126, 10)}>File Copy/Rename</text>
+
+              {/* Pipeline: DB Insert */}
+              <rect {...boxStyle(360, 155, 110, 32)} />
+              <text {...textStyle(415, 171, 10)}>DB Insert</text>
+
+              {/* Pipeline: Supabase */}
+              <rect {...boxStyle(360, 200, 110, 32)} />
+              <text {...textStyle(415, 216, 10)}>Supabase Upload</text>
+
+              {/* Pipeline: Gemini */}
+              <rect {...boxStyle(520, 155, 120, 36, '#fef3c7', '#D4A84B')} />
+              <text {...textStyle(580, 173, 11, 600, '#92400e')}>Gemini API</text>
+
+              {/* Pipeline: Response */}
+              <rect {...boxStyle(690, 155, 110, 36, '#f0fdf4', '#22c55e')} />
+              <text {...textStyle(745, 173, 11, 600, '#15803d')}>AI Response</text>
+
+              {/* Arrows for Pipeline */}
+              {arrow(140, 160, 188, 170)}
+              {arrow(322, 170, 358, 126)}
+              {arrow(322, 175, 358, 171)}
+              {arrow(322, 180, 358, 216)}
+              {arrow(472, 126, 560, 155)}
+              {arrow(472, 171, 518, 171)}
+              {arrow(472, 216, 560, 190)}
+              {arrow(642, 173, 688, 173)}
+
+              {/* Legend */}
+              <rect x="20" y="270" width="10" height="10" rx="2" fill={BLUE} />
+              <text x="36" y="280" fontSize="10" fill="#374151" fontFamily="Inter,system-ui,sans-serif">Direct: Audio → Base64 → Gemini → Response</text>
+              <rect x="20" y="290" width="10" height="10" rx="2" fill={RED} opacity="0.7" />
+              <text x="36" y="300" fontSize="10" fill="#374151" fontFamily="Inter,system-ui,sans-serif">Pipeline: Audio → Orchestrator → File I/O + DB + Storage → Gemini → Response</text>
+            </svg>
+          </div>
+        </div>
+      );
+    }
+
+    function DataTable() {
+      return (
+        <div className="section">
+          <div className="section-title">Table 1: Complete Metrics Data</div>
+          <div className="section-desc">Per-file latency measurements across {DATA.length} audio recordings. Overhead = Pipeline Latency - Direct Latency.</div>
+          <div className="table-section">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Size (MB)</th>
+                  <th>Duration</th>
+                  <th>Direct (ms)</th>
+                  <th>Pipeline (ms)</th>
+                  <th>Overhead (ms)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enriched.map(d => {
+                  const m = Math.floor(d.durSec / 60);
+                  const s = d.durSec % 60;
+                  const dur = m > 0 ? `${m}m ${s}s` : `${s}s`;
+                  return (
+                    <tr key={d.id}>
+                      <td>{d.id}</td>
+                      <td>{d.sizeMB.toFixed(2)}</td>
+                      <td>{dur}</td>
+                      <td>{d.directMs.toLocaleString()}</td>
+                      <td>{d.pipelineMs.toLocaleString()}</td>
+                      <td className={d.overheadMs < 0 ? 'neg' : 'pos'}>
+                        {d.overheadMs > 0 ? '+' : ''}{d.overheadMs.toLocaleString()}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    function Summary() {
+      return (
+        <div className="section">
+          <div className="section-title">Summary of Findings</div>
+          <div className="summary-box">
+            <p>
+              Across <strong>{DATA.length} audio files</strong>, the system demonstrated
+              a mean direct Gemini API latency of <strong>{stats.avgDirect.toLocaleString()} ms</strong> and
+              a mean full-pipeline latency of <strong>{stats.avgPipeline.toLocaleString()} ms</strong>,
+              yielding a mean overhead of <strong>{stats.avgOverhead > 0 ? '+' : ''}{stats.avgOverhead.toLocaleString()} ms</strong> (median: {stats.medianOverhead > 0 ? '+' : ''}{stats.medianOverhead.toLocaleString()} ms).
+            </p>
+            <br />
+            <p>
+              The pipeline was <strong>faster</strong> than the direct API call in <strong>{stats.fasterCount} of {DATA.length}</strong> files
+              ({Math.round(stats.fasterCount / DATA.length * 100)}%), and slower in <strong>{stats.slowerCount}</strong> files
+              ({Math.round(stats.slowerCount / DATA.length * 100)}%).
+              This indicates that backend orchestration overhead (file copy, database insert, cloud storage upload)
+              is <strong>negligible relative to Gemini API variance</strong> -- the natural fluctuation in API response
+              time dominates the measurement, masking the small deterministic overhead of the pipeline.
+            </p>
+            <br />
+            <p>
+              Importantly, the system achieved a <strong>100% success rate</strong> with zero errors or empty
+              responses across all {DATA.length} trials, demonstrating robust reliability under sequential
+              load conditions.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function Dashboard() {
+      return (
+        <div className="dashboard">
+          <div className="dashboard-title">System Performance Metrics</div>
+          <div className="dashboard-subtitle">NurseAI Clinical Decision Support -- Latency Benchmark (n={DATA.length} audio files)</div>
+          <KPICards />
+          <LatencyChart />
+          <OverheadChart />
+          <ArchDiagram />
+          <DataTable />
+          <Summary />
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Dashboard />);
+  </script>
+</body>
+</html>

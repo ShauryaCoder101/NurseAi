@@ -40,6 +40,9 @@ const corsOptions = {
     if (!origin || !isProduction) {
       return callback(null, true);
     }
+    if (allowedOrigins.length === 0) {
+      return callback(null, true);
+    }
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
@@ -56,14 +59,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Root route for ELB health checks (some ELBs check / as well)
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'NurseAI Backend API',
-    health: '/health',
-  });
-});
+app.use('/benchmark', express.static(path.join(__dirname, 'public/benchmark')));
+app.use('/', express.static(path.join(__dirname, 'public/site')));
 
 app.use(helmet());
 app.use(cors(corsOptions)); // Enable CORS for frontend
@@ -73,7 +70,6 @@ app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
 if (!isProduction) {
   app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 }
-app.use('/benchmark', express.static(path.join(__dirname, 'public/benchmark')));
 
 // Request logging middleware
 app.use((req, res, next) => {

@@ -245,9 +245,27 @@ async function getBenchmarkAudio(req, res) {
       });
     }
 
+    const mimeType = audioRecord.mime_type || 'audio/mp4';
+
     const playbackUrl = await resolvePlaybackUrl(audioRecord);
     if (playbackUrl) {
-      return res.redirect(playbackUrl);
+      try {
+        const upstream = await fetch(playbackUrl);
+        if (!upstream.ok) {
+          return res.redirect(playbackUrl);
+        }
+        res.set('Content-Type', mimeType);
+        const contentLength = upstream.headers.get('content-length');
+        if (contentLength) {
+          res.set('Content-Length', contentLength);
+        }
+        res.set('Accept-Ranges', 'bytes');
+        const nodeStream = require('stream').Readable.fromWeb(upstream.body);
+        nodeStream.pipe(res);
+        return;
+      } catch (_proxyErr) {
+        return res.redirect(playbackUrl);
+      }
     }
 
     if (!audioRecord.file_path || !fs.existsSync(audioRecord.file_path)) {
@@ -258,6 +276,7 @@ async function getBenchmarkAudio(req, res) {
     }
 
     const resolvedPath = path.resolve(audioRecord.file_path);
+    res.set('Content-Type', mimeType);
     res.sendFile(resolvedPath);
   } catch (error) {
     console.error('Benchmark audio error:', error);
