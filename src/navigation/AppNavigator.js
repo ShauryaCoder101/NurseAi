@@ -15,12 +15,12 @@ const Tab = createBottomTabNavigator();
 
 const MainTabs = () => {
   const tabBarOptions = useMemo(() => ({
-    activeTintColor: '#007AFF',
-    inactiveTintColor: '#8E8E93',
+    activeTintColor: '#0D9488',
+    inactiveTintColor: '#94A3B8',
     style: {
       backgroundColor: '#FFFFFF',
       borderTopWidth: 1,
-      borderTopColor: '#E5E5E5',
+      borderTopColor: '#E2E8F0',
       height: 60,
       paddingBottom: 8,
       paddingTop: 8,
@@ -81,7 +81,7 @@ const AppNavigator = () => {
         headerStyle: {
           backgroundColor: '#FFFFFF',
         },
-        headerTintColor: '#333333',
+        headerTintColor: '#1E293B',
         headerTitleStyle: {
           fontWeight: '600',
         },

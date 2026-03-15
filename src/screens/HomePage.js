@@ -410,7 +410,7 @@ const HomePage = ({navigation}) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#0D9488" />
         </View>
       </SafeAreaView>
     );
@@ -435,7 +435,7 @@ const HomePage = ({navigation}) => {
         <View style={styles.logoCard}>
           <View style={styles.header}>
             <View style={styles.headerIcon}>
-              <Ionicons name="document-text" size={32} color="#007AFF" />
+              <Ionicons name="document-text" size={32} color="#0D9488" />
             </View>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle}>NurseAI</Text>
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     paddingBottom: 24,
@@ -509,19 +509,19 @@ const styles = StyleSheet.create({
   logoCard: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F6',
+    borderBottomColor: '#E2E8F0',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerIcon: {
-    width: 56,
-    height: 56,
+    width: 52,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: '#E5F2FF',
+    backgroundColor: '#E6FFFA',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -530,14 +530,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 2,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
   },
   geminiList: {
     marginHorizontal: 12,
@@ -569,28 +569,28 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     marginBottom: 12,
   },
   geminiTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 6,
   },
   geminiSubtitle: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#0D9488',
     marginBottom: 8,
   },
   geminiContent: {
     fontSize: 14,
-    color: '#444444',
+    color: '#1E293B',
   },
   geminiHint: {
     marginTop: 8,
     fontSize: 12,
-    color: '#999999',
+    color: '#94A3B8',
   },
   geminiCardHeader: {
     flexDirection: 'row',
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   flagButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#DC2626',
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 8,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   flagModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     padding: 20,
   },
@@ -630,24 +630,24 @@ const styles = StyleSheet.create({
   flagModalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 6,
   },
   flagModalSubtitle: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
     marginBottom: 12,
   },
   flagModalInput: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     minHeight: 90,
     fontSize: 14,
-    color: '#333333',
-    backgroundColor: '#FAFAFA',
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
   },
   flagModalActions: {
     flexDirection: 'row',
@@ -660,15 +660,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
   },
   flagModalCancelText: {
-    color: '#666666',
+    color: '#64748B',
     fontSize: 14,
     fontWeight: '600',
   },
   flagModalSubmit: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#DC2626',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
@@ -684,29 +684,29 @@ const styles = StyleSheet.create({
   askAiLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 6,
   },
   askAiInput: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     minHeight: 44,
     fontSize: 14,
-    color: '#333333',
-    backgroundColor: '#FAFAFA',
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
     marginBottom: 10,
   },
   askAiButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
   },
   askAiButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#94A3B8',
   },
   askAiButtonText: {
     color: '#FFFFFF',
@@ -715,14 +715,14 @@ const styles = StyleSheet.create({
   },
   geminiEmpty: {
     fontSize: 14,
-    color: '#999999',
+    color: '#94A3B8',
   },
   geminiError: {
     fontSize: 14,
-    color: '#FF3B30',
+    color: '#DC2626',
   },
   swipeAction: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#059669',
     justifyContent: 'center',
     alignItems: 'center',
     width: 110,
@@ -740,14 +740,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
   },
   emptyContainer: {
     padding: 40,
@@ -755,11 +755,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999999',
+    color: '#94A3B8',
   },
   errorText: {
     fontSize: 14,
-    color: '#FF3B30',
+    color: '#DC2626',
     marginTop: 8,
     textAlign: 'center',
   },

@@ -160,7 +160,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="mail" size={32} color="#007AFF" />
+              <Ionicons name="mail" size={32} color="#0D9488" />
             </View>
             <Text style={styles.title}>Verify OTP</Text>
             <Text style={styles.subtitle}>
@@ -206,7 +206,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
               onPress={handleResendOTP}
               disabled={resending}>
               {resending ? (
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color="#0D9488" />
               ) : (
                 <Text style={styles.resendLink}>Resend</Text>
               )}
@@ -231,7 +231,7 @@ const OTPVerificationScreen = ({navigation, route}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   keyboardView: {
     flex: 1,
@@ -244,99 +244,84 @@ const styles = StyleSheet.create({
   contentInner: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 18,
+    padding: 24,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderColor: '#E2E8F0',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 32,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#E8F1FF',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#E6FFFA',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666666',
+    fontSize: 15,
+    color: '#64748B',
     textAlign: 'center',
   },
   email: {
     fontWeight: '600',
-    color: '#007AFF',
+    color: '#0D9488',
   },
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 28,
   },
   otpInput: {
     width: 48,
     height: 56,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     textAlign: 'center',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#333333',
-    backgroundColor: '#F3F5F9',
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
+    marginBottom: 20,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
   },
   resendContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   resendText: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
   },
   resendLink: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#0D9488',
     fontWeight: '600',
   },
   backButton: {
@@ -346,7 +331,7 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#0D9488',
     marginLeft: 8,
     fontWeight: '500',
   },

@@ -594,6 +594,52 @@ async function flagGeminiSuggestion(req, res) {
   }
 }
 
+async function getGroupedTranscripts(req, res) {
+  try {
+    const userId = req.userId;
+    const rows = await dbHelpers.all(
+      `SELECT id, title, content, patient_name, patient_id, source,
+              audio_record_id, suggestion_completed, created_at
+       FROM transcripts
+       WHERE user_uid = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    const groupMap = new Map();
+    for (const row of rows) {
+      const key = row.patient_id || row.patient_name || 'unknown';
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          patientId: row.patient_id || null,
+          patientName: row.patient_name || null,
+          latestDate: row.created_at,
+          transcripts: [],
+        });
+      }
+      groupMap.get(key).transcripts.push({
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        source: row.source,
+        audioRecordId: row.audio_record_id,
+        suggestionCompleted: row.suggestion_completed,
+        createdAt: row.created_at,
+      });
+    }
+
+    const groups = Array.from(groupMap.values()).map((g) => ({
+      ...g,
+      visitCount: g.transcripts.length,
+    }));
+
+    res.json({success: true, data: groups});
+  } catch (error) {
+    console.error('Get grouped transcripts error:', error);
+    res.status(500).json({success: false, error: 'Internal server error.'});
+  }
+}
+
 module.exports = {
   getTranscripts,
   getTranscript,
@@ -606,4 +652,5 @@ module.exports = {
   followupGeminiSuggestion,
   flagGeminiSuggestion,
   generateProforma,
+  getGroupedTranscripts,
 };

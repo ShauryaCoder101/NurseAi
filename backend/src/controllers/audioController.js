@@ -2,10 +2,26 @@
 const path = require('path');
 const fs = require('fs');
 const {dbHelpers} = require('../config/database');
-const {generateGeminiSuggestion, generateDiagnosisFromAudio, generatePrescription} = require('../services/geminiService');
+const {generateGeminiSuggestion, generateDiagnosisFromAudio, generatePrescription, generateExtractedProforma} = require('../services/geminiService');
 const {uploadAudioFile, isStorageConfigured} = require('../services/supabaseStorage');
 
 const AUDIO_UPLOAD_DIR = path.join(__dirname, '../../uploads/audio');
+
+async function fetchPatientHistory(patientId) {
+  if (!patientId) return '';
+  const rows = await dbHelpers.all(
+    `SELECT content, source, created_at FROM transcripts
+     WHERE patient_id = $1 AND source IN ('gemini', 'gemini-diagnosis')
+     ORDER BY created_at ASC`,
+    [patientId]
+  );
+  if (!rows || rows.length === 0) return '';
+  return rows.map((r) => {
+    const date = r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : 'unknown date';
+    const type = r.source === 'gemini-diagnosis' ? 'diagnosis' : 'prescription';
+    return `Visit (${date}, ${type}):\n${r.content}`;
+  }).join('\n\n---\n\n');
+}
 
 function ensureUploadDir() {
   if (!fs.existsSync(AUDIO_UPLOAD_DIR)) {
@@ -31,6 +47,7 @@ async function uploadAudio(req, res) {
 
     const audioFile = req.files?.audio?.[0];
     const photoFile = req.files?.photo?.[0];
+    const audio2File = req.files?.audio2?.[0];
 
     if (!audioFile) {
       return res.status(400).json({
@@ -134,10 +151,18 @@ async function uploadAudio(req, res) {
       if (!patientId) {
         geminiErrorMessage = 'Patient ID is required for Gemini suggestions.';
       } else {
+        const audioPaths = [filePath];
+        const audioMimeTypes = [mimeType];
+        if (audio2File) {
+          audioPaths.push(audio2File.path.replace(/\\/g, '/'));
+          audioMimeTypes.push(audio2File.mimetype || 'audio/mp4');
+        }
+        const patientHistory = await fetchPatientHistory(patientId);
         diagnosisText = await generateDiagnosisFromAudio({
-          audioPath: filePath,
-          mimeType,
+          audioPaths,
+          mimeTypes: audioMimeTypes,
           patientId,
+          patientHistory,
         });
         if (!diagnosisText || !diagnosisText.trim()) {
           diagnosisText = null;
@@ -202,8 +227,15 @@ async function uploadAudio(req, res) {
         transcriptId,
       },
     });
+
+    if (audio2File) {
+      try { fs.unlinkSync(audio2File.path); } catch (_) {}
+    }
   } catch (error) {
     console.error('Audio upload error:', error);
+    if (audio2File) {
+      try { fs.unlinkSync(audio2File.path); } catch (_) {}
+    }
     res.status(500).json({
       success: false,
       error: 'Internal server error.',
@@ -368,11 +400,13 @@ async function finalizePrescription(req, res) {
       });
     }
 
+    const patientHistory = await fetchPatientHistory(audioRecord.patient_id);
     const prescriptionText = await generatePrescription({
       diagnosisText: diagnosisTranscript.content,
       answerAudioPath,
       answerMimeType,
       patientId: audioRecord.patient_id,
+      patientHistory,
     });
 
     if (!prescriptionText || !prescriptionText.trim()) {
@@ -429,8 +463,62 @@ async function finalizePrescription(req, res) {
   }
 }
 
+async function extractProforma(req, res) {
+  let tempAudioPath = null;
+  try {
+    const audioFile = req.file;
+    if (!audioFile) {
+      return res.status(400).json({
+        success: false,
+        error: 'No audio file uploaded.',
+      });
+    }
+
+    tempAudioPath = audioFile.path.replace(/\\/g, '/');
+    const mimeType = audioFile.mimetype || 'audio/mp4';
+    const patientId = req.body?.patientId || 'Unknown';
+
+    console.log(`Extract proforma: size=${audioFile.size}, mime=${mimeType}, patient=${patientId}`);
+
+    const proformaText = await generateExtractedProforma({
+      audioPath: tempAudioPath,
+      mimeType,
+      patientId,
+    });
+
+    if (!proformaText || !proformaText.trim()) {
+      return res.status(502).json({
+        success: false,
+        error: 'Gemini returned an empty proforma response.',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {proformaText: proformaText.trim()},
+    });
+  } catch (error) {
+    console.error('Extract proforma error:', error);
+    if (error?.code === 'RATE_LIMIT') {
+      return res.status(429).json({
+        success: false,
+        error: 'Too many concurrent users. Please try again in 60 seconds.',
+      });
+    }
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error.',
+    });
+  } finally {
+    if (tempAudioPath) {
+      try { fs.unlinkSync(tempAudioPath); } catch (_) {}
+    }
+  }
+}
+
 module.exports = {
   uploadAudio,
   retryGeminiForAudioRecord,
   finalizePrescription,
+  extractProforma,
 };

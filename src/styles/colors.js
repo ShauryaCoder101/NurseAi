@@ -1,32 +1,31 @@
-// Color palette for the app
-
+// Color palette - simple, trustworthy design for rural healthcare
 export const colors = {
-  primary: '#007AFF',
-  primaryDark: '#0051D5',
-  primaryLight: '#5AC8FA',
-  
-  secondary: '#5856D6',
-  secondaryDark: '#3634A3',
-  secondaryLight: '#AF52DE',
-  
-  success: '#34C759',
-  warning: '#FF9500',
-  error: '#FF3B30',
-  info: '#5AC8FA',
-  
-  background: '#F5F5F5',
+  primary: '#0D9488',
+  primaryDark: '#0F766E',
+  primaryLight: '#E6FFFA',
+
+  secondary: '#64748B',
+  secondaryDark: '#475569',
+  secondaryLight: '#F1F5F9',
+
+  success: '#059669',
+  warning: '#D97706',
+  error: '#DC2626',
+  info: '#0D9488',
+
+  background: '#F8FAFC',
   backgroundLight: '#FFFFFF',
-  backgroundDark: '#E5E5E5',
-  
-  textPrimary: '#333333',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
+  backgroundDark: '#E2E8F0',
+
+  textPrimary: '#1E293B',
+  textSecondary: '#64748B',
+  textTertiary: '#94A3B8',
   textInverse: '#FFFFFF',
-  
-  border: '#E0E0E0',
-  borderLight: '#F0F0F0',
-  borderDark: '#CCCCCC',
-  
+
+  border: '#E2E8F0',
+  borderLight: '#F1F5F9',
+  borderDark: '#CBD5E1',
+
   shadow: '#000000',
 };
 

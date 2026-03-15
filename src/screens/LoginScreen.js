@@ -76,7 +76,7 @@ const LoginScreen = ({navigation}) => {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="medical" size={48} color="#007AFF" />
+              <Ionicons name="medical" size={40} color="#0D9488" />
             </View>
             <Text style={styles.title}>NurseAI</Text>
             <Text style={styles.subtitle}>Clinical Assistant</Text>
@@ -157,7 +157,7 @@ const LoginScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   keyboardView: {
     flex: 1,
@@ -172,55 +172,45 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 32,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E8F1FF',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#E6FFFA',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 8,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666666',
+    fontSize: 15,
+    color: '#64748B',
   },
   form: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 18,
+    padding: 24,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderColor: '#E2E8F0',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F5F9',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
     height: 52,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
   },
   inputIcon: {
     marginRight: 12,
@@ -228,14 +218,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333333',
+    color: '#1E293B',
   },
   forgotLink: {
     alignSelf: 'flex-end',
     marginBottom: 16,
   },
   forgotText: {
-    color: '#007AFF',
+    color: '#0D9488',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -243,23 +233,18 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
   },
   registerContainer: {
@@ -269,11 +254,11 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
   },
   registerLink: {
     fontSize: 14,
-    color: '#007AFF',
+    color: '#0D9488',
     fontWeight: '600',
   },
 });

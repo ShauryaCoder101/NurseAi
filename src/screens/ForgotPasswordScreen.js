@@ -100,7 +100,7 @@ const ForgotPasswordScreen = ({navigation}) => {
           <View style={styles.contentInner}>
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <Ionicons name="lock-open-outline" size={48} color="#007AFF" />
+                <Ionicons name="lock-open-outline" size={40} color="#0D9488" />
               </View>
               <Text style={styles.title}>Reset Password</Text>
               <Text style={styles.subtitle}>
@@ -220,7 +220,7 @@ const ForgotPasswordScreen = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   keyboardView: {
     flex: 1,
@@ -233,43 +233,33 @@ const styles = StyleSheet.create({
   contentInner: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 18,
+    padding: 24,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 8},
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    borderColor: '#E2E8F0',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#E8F1FF',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#E6FFFA',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333333',
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666666',
+    fontSize: 15,
+    color: '#64748B',
     textAlign: 'center',
   },
   form: {
@@ -278,13 +268,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F5F9',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 16,
     height: 52,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
   },
   inputIcon: {
     marginRight: 12,
@@ -292,30 +282,25 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333333',
+    color: '#1E293B',
   },
   eyeIcon: {
     padding: 4,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     borderRadius: 12,
     height: 52,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
   },
   resendLink: {
@@ -323,7 +308,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resendText: {
-    color: '#007AFF',
+    color: '#0D9488',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -332,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backLink: {
-    color: '#007AFF',
+    color: '#0D9488',
     fontSize: 14,
     fontWeight: '600',
   },

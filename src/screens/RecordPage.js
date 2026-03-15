@@ -267,6 +267,9 @@ const RecordPage = ({navigation}) => {
   const [isAnswerRecording, setIsAnswerRecording] = useState(false);
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
   const [answerRecordingSeconds, setAnswerRecordingSeconds] = useState(0);
+  const [firstSegmentUri, setFirstSegmentUri] = useState(null);
+  const [isGeneratingAutoProforma, setIsGeneratingAutoProforma] = useState(false);
+  const [autoProformaText, setAutoProformaText] = useState('');
   const [missingData, setMissingData] = useState({
     age: '',
     gender: '',
@@ -469,6 +472,83 @@ const RecordPage = ({navigation}) => {
     setConsentModalVisible(false);
   }, []);
 
+  const handleGenerateAutoProforma = useCallback(async () => {
+    try {
+      const recording = recordingRef.current;
+      if (!recording) return;
+
+      const status = await recording.getStatusAsync();
+      if (!status.isRecording && !status.isDoneRecording) return;
+
+      await recording.stopAndUnloadAsync();
+      const segmentUri = recording.getURI();
+      recordingRef.current = null;
+
+      if (!segmentUri) {
+        Alert.alert('Error', 'Failed to capture audio segment.');
+        return;
+      }
+
+      setFirstSegmentUri(segmentUri);
+      setIsGeneratingAutoProforma(true);
+
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Required', 'Microphone permission is needed to continue recording.');
+        setIsGeneratingAutoProforma(false);
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+
+      const {recording: newRecording} = await Audio.Recording.createAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 22050,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MEDIUM,
+          sampleRate: 22050,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        web: {mimeType: 'audio/webm', bitsPerSecond: 64000},
+      });
+      recordingRef.current = newRecording;
+      recordingStartRef.current = Date.now();
+
+      apiService.extractProforma(segmentUri, patientId.trim()).then((result) => {
+        setIsGeneratingAutoProforma(false);
+        if (result.success) {
+          const proforma = result.data?.data?.proformaText || result.data?.proformaText || '';
+          setAutoProformaText(proforma);
+        } else {
+          console.error('Auto proforma failed:', result.error);
+          Alert.alert('Proforma Error', result.error || 'Failed to generate proforma from recording.');
+        }
+      }).catch((err) => {
+        setIsGeneratingAutoProforma(false);
+        console.error('Auto proforma error:', err);
+      });
+    } catch (error) {
+      console.error('Error generating auto proforma:', error);
+      setIsGeneratingAutoProforma(false);
+      Alert.alert('Error', 'Failed to generate proforma. Recording continues.');
+    }
+  }, [patientId]);
+
   const parseMissingFields = useCallback((content) => {
     if (!content) return [];
     const lower = content.toLowerCase();
@@ -538,12 +618,20 @@ const RecordPage = ({navigation}) => {
     async (audioUri, photoUri) => {
       setIsUploading(true);
       try {
-        const uploadResult = await apiService.uploadAudio({
-          uri: audioUri,
+        const uploadParams = {
           photoUri,
           patientName: patientName.trim(),
           patientId: patientId.trim(),
-        });
+        };
+
+        if (firstSegmentUri) {
+          uploadParams.uri = firstSegmentUri;
+          uploadParams.secondAudioUri = audioUri;
+        } else {
+          uploadParams.uri = audioUri;
+        }
+
+        const uploadResult = await apiService.uploadAudio(uploadParams);
 
         if (uploadResult.success) {
           const payload = uploadResult.data?.data || {};
@@ -564,6 +652,8 @@ const RecordPage = ({navigation}) => {
           }
           setCurrentAudioRecordId(payload.id);
           setDiagnosisText(payload.diagnosisText || '');
+          setFirstSegmentUri(null);
+          setAutoProformaText('');
         } else {
           Alert.alert('Upload Failed', uploadResult.error || 'Failed to upload recording.');
         }
@@ -574,7 +664,7 @@ const RecordPage = ({navigation}) => {
         setIsUploading(false);
       }
     },
-    [patientName, patientId, handleGeminiRateLimit]
+    [patientName, patientId, handleGeminiRateLimit, firstSegmentUri]
   );
 
   const startAnswerRecording = useCallback(async () => {
@@ -1081,22 +1171,22 @@ const RecordPage = ({navigation}) => {
           <View style={styles.proformaSection}>
             <Text style={styles.sectionTitle}>Search Proforma</Text>
             <View style={styles.proformaSearchWrapper}>
-              <Ionicons name="search-outline" size={18} color="#999999" />
+              <Ionicons name="search-outline" size={18} color="#94A3B8" />
               <TextInput
                 style={styles.proformaSearchInput}
                 placeholder="Search proforma"
-                placeholderTextColor="#999999"
+                placeholderTextColor="#94A3B8"
                 value={proformaQuery}
                 onChangeText={setProformaQuery}
                 onFocus={handleMainFocus}
               />
             </View>
             <View style={styles.proformaCreateWrapper}>
-              <Ionicons name="sparkles-outline" size={18} color="#999999" />
+              <Ionicons name="sparkles-outline" size={18} color="#94A3B8" />
               <TextInput
                 style={styles.proformaCreateInput}
                 placeholder="Create proforma (e.g., rash and fever)"
-                placeholderTextColor="#999999"
+                placeholderTextColor="#94A3B8"
                 value={createProformaQuery}
                 onChangeText={setCreateProformaQuery}
                 onFocus={handleMainFocus}
@@ -1122,7 +1212,7 @@ const RecordPage = ({navigation}) => {
                   onPress={() => handleOpenProforma(item)}
                   activeOpacity={0.8}>
                   <Text style={styles.proformaItemText}>{item.title}</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
                 </TouchableOpacity>
               ))}
               {proformaItems.length === 0 && (
@@ -1133,10 +1223,29 @@ const RecordPage = ({navigation}) => {
             </View>
           </View>
 
+          {(autoProformaText || isGeneratingAutoProforma) ? (
+            <View style={styles.autoProformaSection}>
+              <View style={styles.diagnosisSectionHeader}>
+                <Ionicons name="document-text" size={20} color="#059669" />
+                <Text style={[styles.diagnosisSectionTitle, {color: '#059669'}]}>Auto-Generated Proforma</Text>
+              </View>
+              {isGeneratingAutoProforma ? (
+                <View style={styles.answerSubmittingContainer}>
+                  <ActivityIndicator size="small" color="#059669" />
+                  <Text style={[styles.answerSubmittingText, {color: '#059669'}]}>Generating proforma from recording...</Text>
+                </View>
+              ) : (
+                <View style={styles.diagnosisCard}>
+                  <Text style={styles.diagnosisContent}>{autoProformaText}</Text>
+                </View>
+              )}
+            </View>
+          ) : null}
+
           {diagnosisText ? (
             <View style={styles.diagnosisSection}>
               <View style={styles.diagnosisSectionHeader}>
-                <Ionicons name="medkit" size={20} color="#007AFF" />
+                <Ionicons name="medkit" size={20} color="#0D9488" />
                 <Text style={styles.diagnosisSectionTitle}>Diagnostic Assessment</Text>
               </View>
               <Text style={styles.diagnosisSectionSubtitle}>
@@ -1148,7 +1257,7 @@ const RecordPage = ({navigation}) => {
               {isAnswerRecording ? (
                 <View style={styles.answerRecordingContainer}>
                   <View style={styles.answerRecordingIndicator}>
-                    <Ionicons name="mic" size={24} color="#FF3B30" />
+                    <Ionicons name="mic" size={24} color="#DC2626" />
                     <Text style={styles.answerRecordingTimer}>{formatDuration(answerRecordingSeconds)}</Text>
                     <Text style={styles.answerRecordingLabel}>Recording answers...</Text>
                   </View>
@@ -1162,7 +1271,7 @@ const RecordPage = ({navigation}) => {
                 </View>
               ) : isSubmittingAnswers ? (
                 <View style={styles.answerSubmittingContainer}>
-                  <ActivityIndicator size="small" color="#007AFF" />
+                  <ActivityIndicator size="small" color="#0D9488" />
                   <Text style={styles.answerSubmittingText}>Generating prescription...</Text>
                 </View>
               ) : (
@@ -1181,7 +1290,7 @@ const RecordPage = ({navigation}) => {
             <Ionicons 
               name={isRecording ? 'mic' : 'mic-outline'} 
               size={80} 
-              color={isRecording ? '#FF3B30' : '#007AFF'} 
+              color={isRecording ? '#DC2626' : '#0D9488'} 
             />
           </View>
         
@@ -1200,11 +1309,11 @@ const RecordPage = ({navigation}) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Patient Name *</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color="#999999" style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter patient name"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor="#94A3B8"
                   value={patientName}
                   onChangeText={setPatientName}
                   onFocus={handleMainFocus}
@@ -1216,11 +1325,11 @@ const RecordPage = ({navigation}) => {
             <View style={styles.inputContainer}>
               <Text style={styles.label}>Patient ID *</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="id-card-outline" size={20} color="#999999" style={styles.inputIcon} />
+                <Ionicons name="id-card-outline" size={20} color="#94A3B8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter patient ID"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor="#94A3B8"
                   value={patientId}
                   onChangeText={setPatientId}
                   onFocus={handleMainFocus}
@@ -1235,15 +1344,15 @@ const RecordPage = ({navigation}) => {
         {isRecording && (
           <View style={styles.patientInfoContainer}>
             <View style={styles.patientInfoRow}>
-              <Ionicons name="person" size={16} color="#666666" />
+              <Ionicons name="person" size={16} color="#64748B" />
               <Text style={styles.patientInfoText}>{patientName}</Text>
             </View>
             <View style={styles.patientInfoRow}>
-              <Ionicons name="id-card" size={16} color="#666666" />
+              <Ionicons name="id-card" size={16} color="#64748B" />
               <Text style={styles.patientInfoText}>ID: {patientId}</Text>
             </View>
             <View style={styles.timerRow}>
-              <Ionicons name="time-outline" size={16} color="#FF3B30" />
+              <Ionicons name="time-outline" size={16} color="#DC2626" />
               <Text style={styles.timerText}>{formatDuration(recordingSeconds)}</Text>
             </View>
           </View>
@@ -1267,6 +1376,19 @@ const RecordPage = ({navigation}) => {
               {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
             </Text>
           </TouchableOpacity>
+
+          {isRecording && recordingSeconds >= 30 && !firstSegmentUri && (
+            <TouchableOpacity
+              style={styles.autoProformaButton}
+              onPress={handleGenerateAutoProforma}
+              activeOpacity={0.8}
+              disabled={isGeneratingAutoProforma}>
+              <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.autoProformaButtonText}>
+                {isGeneratingAutoProforma ? 'Generating...' : 'Generate Proforma'}
+              </Text>
+            </TouchableOpacity>
+          )}
           {pendingGeminiRetry && (
             <View style={styles.retryCard}>
               <Text style={styles.retryTitle}>Gemini is busy</Text>
@@ -1549,17 +1671,37 @@ const RecordPage = ({navigation}) => {
             <Text style={styles.modalTitle}>
               {selectedProforma?.title || 'Proforma'}
             </Text>
+            {isRecording && (
+              <View style={styles.proformaRecordingBanner}>
+                <Ionicons name="mic" size={16} color="#DC2626" />
+                <Text style={styles.proformaRecordingTimer}>{formatDuration(recordingSeconds)}</Text>
+              </View>
+            )}
             <ScrollView style={styles.modalForm}>
               <Text style={styles.proformaContent}>
                 {selectedProforma?.content || ''}
               </Text>
             </ScrollView>
-            <TouchableOpacity
-              style={styles.modalSubmit}
-              onPress={() => setProformaModalVisible(false)}
-              activeOpacity={0.8}>
-              <Text style={styles.modalSubmitText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.proformaModalActions}>
+              {isRecording && (
+                <TouchableOpacity
+                  style={styles.proformaStopButton}
+                  onPress={() => {
+                    setProformaModalVisible(false);
+                    handleStopRecording();
+                  }}
+                  activeOpacity={0.8}>
+                  <Ionicons name="stop" size={18} color="#FFFFFF" />
+                  <Text style={styles.proformaStopButtonText}>Stop Recording</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.modalSubmit, {flex: 1}]}
+                onPress={() => setProformaModalVisible(false)}
+                activeOpacity={0.8}>
+                <Text style={styles.modalSubmitText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1570,7 +1712,7 @@ const RecordPage = ({navigation}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -1593,7 +1735,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.06,
@@ -1603,16 +1745,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 12,
   },
   proformaSearchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
     paddingHorizontal: 12,
     height: 44,
     marginBottom: 12,
@@ -1621,15 +1763,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 15,
-    color: '#333333',
+    color: '#1E293B',
   },
   proformaCreateWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
     paddingHorizontal: 12,
     height: 44,
     marginBottom: 12,
@@ -1638,10 +1780,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: '#333333',
+    color: '#1E293B',
   },
   proformaCreateButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
@@ -1666,13 +1808,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     backgroundColor: '#FAFAFA',
   },
   proformaItemText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1E293B',
   },
   proformaEmpty: {
     paddingVertical: 12,
@@ -1680,7 +1822,7 @@ const styles = StyleSheet.create({
   },
   proformaEmptyText: {
     fontSize: 13,
-    color: '#999999',
+    color: '#94A3B8',
   },
   iconContainer: {
     marginBottom: 24,
@@ -1688,13 +1830,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666666',
+    color: '#64748B',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -1709,7 +1851,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 8,
   },
   inputWrapper: {
@@ -1718,7 +1860,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
     paddingHorizontal: 12,
     height: 50,
     shadowColor: '#000',
@@ -1733,7 +1875,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333333',
+    color: '#1E293B',
   },
   patientInfoContainer: {
     backgroundColor: '#FFFFFF',
@@ -1743,7 +1885,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.06,
@@ -1762,19 +1904,19 @@ const styles = StyleSheet.create({
   },
   patientInfoText: {
     fontSize: 16,
-    color: '#333333',
+    color: '#1E293B',
     marginLeft: 8,
     fontWeight: '500',
   },
   timerText: {
     fontSize: 16,
-    color: '#FF3B30',
+    color: '#DC2626',
     marginLeft: 8,
     fontWeight: '700',
     letterSpacing: 1,
   },
   recordButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 20,
     paddingHorizontal: 40,
     borderRadius: 18,
@@ -1789,10 +1931,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   recordButtonActive: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#DC2626',
   },
   recordButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#94A3B8',
     opacity: 0.6,
   },
   recordButtonText: {
@@ -1807,21 +1949,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
   },
   retryTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 4,
   },
   retrySubtitle: {
     fontSize: 13,
-    color: '#666666',
+    color: '#64748B',
     marginBottom: 10,
   },
   retryButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#DC2626',
     paddingVertical: 10,
     borderRadius: 10,
     alignItems: 'center',
@@ -1859,12 +2001,12 @@ const styles = StyleSheet.create({
   consentModalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 6,
   },
   consentModalBody: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
     lineHeight: 20,
   },
   consentModalActions: {
@@ -1877,16 +2019,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     marginRight: 10,
   },
   consentModalCancelText: {
-    color: '#666666',
+    color: '#64748B',
     fontSize: 14,
     fontWeight: '600',
   },
   consentModalAgree: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 10,
@@ -1921,29 +2063,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     backgroundColor: '#F8F8F8',
     alignItems: 'center',
     marginBottom: 10,
   },
   photoOptionPrimary: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
   },
   photoOptionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1E293B',
   },
   photoOptionPrimaryText: {
     color: '#FFFFFF',
   },
   photoOptionDestructive: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#FF3B30',
+    borderColor: '#DC2626',
   },
   photoOptionDestructiveText: {
-    color: '#FF3B30',
+    color: '#DC2626',
   },
   photoOptionDisabled: {
     opacity: 0.6,
@@ -1951,12 +2093,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 6,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
     marginBottom: 16,
   },
   modalForm: {
@@ -1964,8 +2106,75 @@ const styles = StyleSheet.create({
   },
   proformaContent: {
     fontSize: 14,
-    color: '#333333',
+    color: '#1E293B',
     lineHeight: 20,
+  },
+  proformaRecordingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF5F5',
+    borderRadius: 8,
+    paddingVertical: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#FFD0D0',
+  },
+  proformaRecordingTimer: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginLeft: 6,
+  },
+  proformaModalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  proformaStopButton: {
+    flex: 1,
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proformaStopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  autoProformaSection: {
+    backgroundColor: '#F0FFF4',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#C6F6D5',
+    width: '100%',
+    maxWidth: 500,
+  },
+  autoProformaButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  autoProformaButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   diagnosisSection: {
     backgroundColor: '#F0F7FF',
@@ -1983,12 +2192,12 @@ const styles = StyleSheet.create({
   diagnosisSectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#007AFF',
+    color: '#0D9488',
     marginLeft: 8,
   },
   diagnosisSectionSubtitle: {
     fontSize: 13,
-    color: '#555555',
+    color: '#64748B',
     lineHeight: 18,
     marginBottom: 12,
   },
@@ -2000,11 +2209,11 @@ const styles = StyleSheet.create({
   },
   diagnosisContent: {
     fontSize: 14,
-    color: '#333333',
+    color: '#1E293B',
     lineHeight: 22,
   },
   answerButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     borderRadius: 10,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -2028,16 +2237,16 @@ const styles = StyleSheet.create({
   answerRecordingTimer: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#FF3B30',
+    color: '#DC2626',
     marginLeft: 8,
     marginRight: 10,
   },
   answerRecordingLabel: {
     fontSize: 14,
-    color: '#666666',
+    color: '#64748B',
   },
   answerStopButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#DC2626',
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -2059,14 +2268,14 @@ const styles = StyleSheet.create({
   },
   answerSubmittingText: {
     fontSize: 15,
-    color: '#007AFF',
+    color: '#0D9488',
     fontWeight: '500',
     marginLeft: 10,
   },
   modalSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 8,
     marginTop: 4,
   },
@@ -2075,27 +2284,27 @@ const styles = StyleSheet.create({
   },
   modalLabel: {
     fontSize: 13,
-    color: '#333333',
+    color: '#1E293B',
     marginBottom: 6,
   },
   modalInput: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E2E8F0',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
     fontSize: 15,
-    color: '#333333',
+    color: '#1E293B',
     backgroundColor: '#FAFAFA',
   },
   modalSubmit: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalSubmitDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: '#94A3B8',
   },
   modalSubmitText: {
     color: '#FFFFFF',

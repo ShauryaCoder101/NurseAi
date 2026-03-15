@@ -555,23 +555,210 @@ Guideline used: [Name of guideline retrieved via tool]
 Last Verified: [Date/Year from the search result]
 Confidence Level: [High/Medium/Low based on search match]`;
 
-async function generateDiagnosisFromAudio({audioPath, mimeType, patientId}) {
+const EXTRACTION_PROMPT = `Task: Extract specific clinical and demographic data from the following patient-nurse transcript.
+
+Rules:
+
+Strict Format: Use only the headers and labels provided in the example below.
+
+No Narrative: Do not summarize the interaction; only extract the raw data points.
+
+Chief Complaint: This must be a verbatim (word-for-word) quote of the patient explaining their reason for seeking care.
+
+Missing Data: If a specific vital sign or demographic detail is not mentioned in the transcript, write "Not recorded" next to that field.
+
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only.
+
+Output Template:
+
+Demographics
+
+Age: [Extract]
+Gender: [Extract]
+Occupation: [Extract]
+
+Vitals
+
+Heart Rate (HR): [Value] bpm
+Blood Pressure (BP): [Value] mmHg
+Temperature: [Value] °C
+SpO2: [Value]
+Respiratory Rate (RR): [Value] breaths/min
+
+Chief Complaint
+
+[Insert verbatim patient quote here]`;
+
+const PROFORMA_GEM_PROMPT = `Role: You are Proforma Gem, a specialized clinical decision support AI designed to assist Nurse Practitioners and medical students in rural West Bengal, India. Your goal is to optimize the first 5-6 minutes of a patient interview to reach a diagnosis efficiently while ensuring "do-not-miss" conditions are addressed.
+
+Contextual Awareness:
+Geography: Rural West Bengal. Consider local endemicity (e.g., Scrub Typhus, Malaria, Japanese Encephalitis, Visceral Leishmaniasis, etc.).
+Temporality: Always check the current month and year. Adjust differentials based on seasonal peaks (e.g., pre-monsoon, monsoon, winter).
+
+Constraints: The initial interview is capped at 6 minutes. You have one follow-up opportunity for clarifying questions.
+
+STG-Integration Protocol (Mandatory):
+Mandatory Search: For every presenting complaint, you must first identify the relevant Standard Treatment Guidelines (STGs) from the Government of India (GoI), National Health Mission (NHM), or WHO (e.g., "NHM STG for Neonatal Sepsis", "Anemia Mukt Bharat", or "ICMR Diabetes Guidelines").
+Calibration: Use STGs to define "Must-Ask" questions and physiological thresholds (e.g., Respiratory Rate limits, BP cut-offs).
+Preventative Check: For ANC or pediatric visits, cross-reference the National Immunization Schedule and mandatory supplementation protocols (e.g., IFA, Vitamin A, Albendazole).
+
+Response Format: Generate a comprehensive Proforma Interview Guide organized into these sections:
+1. HPI: The Core Narrative
+Use SOCRATES for pain or OPQRST for functional complaints.
+Frame as patient-centered questions exploring illness trajectory
+2. Expanded ROS & Red Flags (STG-Informed)
+List "Must-Ask" questions for the specific system involved.
+Highlight 3-5 "Stop-Sign" Symptoms requiring immediate referral based on STG danger signs (e.g., Inability to feed, convulsions, or severe epigastric pain).
+In the Expanded ROS section, always include broad, systemic questions (Weight loss, Fever, Fatigue, Appetite, etc) regardless of the chief complaint to screen for undiagnosed chronic conditions such as infections, cancer, endocrine, rheumatologic diseases, anemia, cardiopulmonary symptoms etc. Things that are common in the age group specified.
+3. Social & Environmental factors (as relevant to the presenting complaints.)
+Water/Sanitation: Drinking source (Tube well vs. Pond), open defecation, and monsoon flooding.
+Occupational/Zoonotic: Rice paddy work (Lepto), livestock exposure, or stagnant water.
+Nutritional: Dietary diversity (Iron/Protein), Pica (clay/mud eating), and cooking fuel (biomass smoke).
+Tobacco and alcohol use
+sexual history, only if relevant to the presenting complaint.
+4. History & "Rural Pharmacy" Check
+GPLA & Obstetric History: (If applicable) Gravida, Para, Living, Abortion, and birth interval.
+TB/Malaria/HIV Screen: Previous incomplete treatment courses.
+The "Quack" Inquiry: Specific questions about "loose" pills, local herbal remedies, or "gas" medicine from non-medical shops.
+5. High-Yield Physical Exam & Vitals
+Vitals: Include Shock Index (HR/SBP) or Capillary Refill Time -- only if relevant.
+Maneuvers: 3-5 signs (e.g., Bitot's spots, Splenomegaly, Basal Crepitations, or checking for Pedal Edema)--whatever is relevant.
+
+Operational Instructions:
+Tone: Authentic, supportive, clinical, and peer-like.
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
+Default Logic: For vague complaints, default to high-mortality local etiologies (e.g., Sepsis, Eclampsia, Heat Stroke) until ruled out by STG criteria.
+For all symptoms, include Bengali colloquial terms in Bengali script (e.g., instead of just 'breathlessness,' use the Bengali term). Don't include English transliteration.
+
+6. Differential Calibration Table (Mandatory)
+Every response MUST conclude with a "Differential Calibration" table.
+- Columns: | Potential Diagnosis | Key Indicator | STG Action |
+- Content: Include at least 3-4 differentials ranging from common local presentations to high-mortality "do-not-miss" conditions.
+- STG Action: Must specify the immediate clinical step (e.g., specific antibiotic, dosage, or urgent referral criteria) as per NHM/GoI guidelines.`;
+
+async function generateExtractedProforma({audioPath, mimeType, patientId}) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
     }
 
     const audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
+    const extractionPrompt = `${EXTRACTION_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+
+    const modelName = await resolveModelName();
+    if (!modelName) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const extractBody = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {text: extractionPrompt},
+            {inlineData: {mimeType, data: audioBase64}},
+          ],
+        },
+      ],
+    };
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    let response = await fetchWithRetry(endpoint, extractBody);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      }
+      if (response.status === 404) {
+        const fallback = getFallbackModelName();
+        if (fallback && fallback !== modelName) {
+          console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
+          cachedModelName = fallback;
+          response = await fetchWithRetry(
+            `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+            extractBody
+          );
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+            }
+            throw new Error(`Gemini API error (fallback): ${retryError}`);
+          }
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    }
+
+    const extractData = await response.json();
+    const extractedText =
+      extractData?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+
+    if (!extractedText.trim()) {
+      throw new Error('Extraction returned empty result.');
+    }
+
+    const proformaPrompt = `${PROFORMA_GEM_PROMPT}\n\nExtracted Patient Data:\n${extractedText.trim()}`;
+
+    const proformaEndpoint = `${GEMINI_API_BASE_URL}/${cachedModelName || modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    const proformaBody = {
+      contents: [{role: 'user', parts: [{text: proformaPrompt}]}],
+    };
+
+    let proformaResponse = await fetchWithRetry(proformaEndpoint, proformaBody);
+    if (!proformaResponse.ok) {
+      const errText = await proformaResponse.text();
+      if (proformaResponse.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(proformaResponse));
+      }
+      throw new Error(`Gemini proforma API error: ${errText}`);
+    }
+
+    const proformaData = await proformaResponse.json();
+    const proformaText =
+      proformaData?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+
+    return proformaText.trim();
+  });
+}
+
+async function generateDiagnosisFromAudio({audioPaths, mimeTypes, patientId, patientHistory}) {
+  const paths = Array.isArray(audioPaths) ? audioPaths : [audioPaths];
+  const types = Array.isArray(mimeTypes) ? mimeTypes : [mimeTypes];
+
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
+
     const prompt = `${DIAGNOSIS_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+
+    const parts = [{text: prompt}];
+
+    if (patientHistory) {
+      parts.push({text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n`});
+    }
+
+    for (let i = 0; i < paths.length; i++) {
+      const audioBase64 = fs.readFileSync(paths[i], {encoding: 'base64'});
+      parts.push({inlineData: {mimeType: types[i] || 'audio/mp4', data: audioBase64}});
+    }
 
     const body = {
       contents: [
         {
           role: 'user',
-          parts: [
-            {text: prompt},
-            {inlineData: {mimeType, data: audioBase64}},
-          ],
+          parts,
         },
       ],
     };
@@ -624,7 +811,7 @@ async function generateDiagnosisFromAudio({audioPath, mimeType, patientId}) {
   });
 }
 
-async function generatePrescription({diagnosisText, answerAudioPath, answerMimeType, patientId}) {
+async function generatePrescription({diagnosisText, answerAudioPath, answerMimeType, patientId, patientHistory}) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
@@ -645,15 +832,22 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
 
     const answerBase64 = fs.readFileSync(answerAudioPath, {encoding: 'base64'});
 
+    const parts = [
+      {text: combinedPrompt},
+    ];
+
+    if (patientHistory) {
+      parts.push({text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n`});
+    }
+
+    parts.push({inlineData: {mimeType: answerMimeType || 'audio/mp4', data: answerBase64}});
+
     const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
     const body = {
       contents: [
         {
           role: 'user',
-          parts: [
-            {text: combinedPrompt},
-            {inlineData: {mimeType: answerMimeType || 'audio/mp4', data: answerBase64}},
-          ],
+          parts,
         },
       ],
     };
@@ -758,6 +952,7 @@ module.exports = {
   generateProformaResponse,
   generateDiagnosisFromAudio,
   generatePrescription,
+  generateExtractedProforma,
   getBenchmarkPrompt: () => GEMINI_PROMPT,
   generateBenchmarkAudio: async ({audioPath, audioUrl, mimeType, patientId, modelName, promptText}) => {
     return runGeminiThrottled(async () => {

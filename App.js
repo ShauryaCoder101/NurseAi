@@ -211,7 +211,7 @@ const AppContent = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#0D9488" />
       </View>
     );
   }
@@ -219,7 +219,7 @@ const AppContent = () => {
   if (isAuthenticated && !consentChecked) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#0D9488" />
       </View>
     );
   }
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#1E293B',
     marginBottom: 12,
   },
   modalBody: {
@@ -307,11 +307,11 @@ const styles = StyleSheet.create({
   },
   modalText: {
     fontSize: 14,
-    color: '#2A2A2A',
+    color: '#1E293B',
     lineHeight: 20,
   },
   consentButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',

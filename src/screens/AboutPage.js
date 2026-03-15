@@ -111,7 +111,7 @@ const AboutPage = () => {
             <Text style={styles.version}>Version 1.0.0</Text>
             
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+              <Ionicons name="log-out-outline" size={20} color="#DC2626" />
               <Text style={styles.logoutText}>Logout</Text>
             </TouchableOpacity>
           </View>
@@ -124,7 +124,7 @@ const AboutPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1E293B',
     marginBottom: 20,
     marginTop: 10,
   },
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#EEF1F6',
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 6},
     shadowOpacity: 0.06,
@@ -155,22 +155,22 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#007AFF',
+    color: '#0D9488',
     marginBottom: 8,
   },
   stepText: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748B',
     lineHeight: 24,
   },
   divider: {
     height: 1,
-    backgroundColor: '#E6EBF2',
+    backgroundColor: '#E2E8F0',
     marginVertical: 24,
   },
   aboutText: {
     fontSize: 16,
-    color: '#666',
+    color: '#64748B',
     lineHeight: 24,
     marginBottom: 15,
   },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   version: {
     fontSize: 14,
-    color: '#999',
+    color: '#94A3B8',
     marginBottom: 24,
   },
   logoutButton: {
@@ -192,12 +192,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FF3B30',
+    borderColor: '#DC2626',
     backgroundColor: '#FFFFFF',
   },
   logoutText: {
     fontSize: 16,
-    color: '#FF3B30',
+    color: '#DC2626',
     fontWeight: '600',
     marginLeft: 8,
   },

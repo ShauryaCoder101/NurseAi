@@ -70,7 +70,7 @@ const TranscriptPage = ({navigation, route}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
@@ -81,12 +81,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E293B',
     marginBottom: 10,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#E6EBF2',
+    borderColor: '#E2E8F0',
     borderRadius: 14,
     padding: 16,
     fontSize: 16,
@@ -101,11 +101,11 @@ const styles = StyleSheet.create({
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#EEF1F6',
+    borderTopColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0D9488',
     paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',

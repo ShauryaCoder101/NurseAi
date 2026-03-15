@@ -408,39 +408,36 @@ export const apiService = {
     return result;
   },
 
-  // Upload audio recording
-  uploadAudio: async ({uri, photoUri, patientName, patientId}) => {
+  // Upload audio recording (supports optional second audio segment)
+  uploadAudio: async ({uri, photoUri, patientName, patientId, secondAudioUri}) => {
     try {
       const token = await getAuthToken();
       const url = `${API_BASE_URL}/audio/upload`;
 
       const formData = new FormData();
-      const filename = uri.split('/').pop() || 'recording.m4a';
-      const extension = filename.split('.').pop()?.toLowerCase() || 'm4a';
-      const audioTypeMap = {
-        m4a: 'audio/mp4',
-        mp4: 'audio/mp4',
-        mp3: 'audio/mpeg',
-        wav: 'audio/wav',
-        caf: 'audio/x-caf',
-        aac: 'audio/aac',
-        '3gp': 'audio/3gpp',
-        '3gpp': 'audio/3gpp',
+
+      const resolveAudioFile = (audioUri, fieldName) => {
+        const fn = audioUri.split('/').pop() || 'recording.m4a';
+        const ext = fn.split('.').pop()?.toLowerCase() || 'm4a';
+        const typeMap = {
+          m4a: 'audio/mp4', mp4: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav',
+          caf: 'audio/x-caf', aac: 'audio/aac', '3gp': 'audio/3gpp', '3gpp': 'audio/3gpp',
+        };
+        const ft = typeMap[ext] || 'audio/mp4';
+        const normalized = audioUri.startsWith('file://') || audioUri.startsWith('content://')
+          ? audioUri : `file://${audioUri}`;
+        return {uri: normalized, name: fn, type: ft};
       };
-      const fileType = audioTypeMap[extension] || 'audio/mp4';
 
-      const normalizedUri =
-        uri.startsWith('file://') || uri.startsWith('content://')
-          ? uri
-          : `file://${uri}`;
+      const mainAudio = resolveAudioFile(uri, 'audio');
+      console.log(`Audio upload: uri=${mainAudio.uri}, name=${mainAudio.name}, type=${mainAudio.type}`);
+      formData.append('audio', mainAudio);
 
-      console.log(`Audio upload: uri=${normalizedUri}, name=${filename}, type=${fileType}`);
-
-      formData.append('audio', {
-        uri: normalizedUri,
-        name: filename,
-        type: fileType,
-      });
+      if (secondAudioUri) {
+        const secondAudio = resolveAudioFile(secondAudioUri, 'audio2');
+        console.log(`Audio2 upload: uri=${secondAudio.uri}, name=${secondAudio.name}, type=${secondAudio.type}`);
+        formData.append('audio2', secondAudio);
+      }
 
       if (photoUri) {
         const photoName = photoUri.split('/').pop() || 'photo.jpg';
@@ -482,6 +479,49 @@ export const apiService = {
       return {success: true, data};
     } catch (error) {
       console.error('Audio upload error:', error);
+      return {success: false, error: error.message};
+    }
+  },
+
+  extractProforma: async (audioUri, patientId) => {
+    try {
+      const token = await getAuthToken();
+      const url = `${API_BASE_URL}/audio/extract-proforma`;
+
+      const filename = audioUri.split('/').pop() || 'segment.m4a';
+      const extension = filename.split('.').pop()?.toLowerCase() || 'm4a';
+      const audioTypeMap = {
+        m4a: 'audio/mp4', mp4: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav',
+        caf: 'audio/x-caf', aac: 'audio/aac', '3gp': 'audio/3gpp', '3gpp': 'audio/3gpp',
+      };
+      const fileType = audioTypeMap[extension] || 'audio/mp4';
+
+      const normalizedUri = audioUri.startsWith('file://') || audioUri.startsWith('content://')
+        ? audioUri : `file://${audioUri}`;
+
+      const formData = new FormData();
+      formData.append('audio', {uri: normalizedUri, name: filename, type: fileType});
+      if (patientId) formData.append('patientId', patientId);
+
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {success: false, status: response.status, error: data.error || 'Extract proforma failed', data};
+      }
+
+      return {success: true, data};
+    } catch (error) {
+      console.error('Extract proforma error:', error);
       return {success: false, error: error.message};
     }
   },
@@ -544,6 +584,15 @@ export const apiService = {
     const result = await apiCall(`/audio/${audioRecordId}/retry-gemini`, {
       method: 'POST',
     });
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  getGroupedTranscripts: async () => {
+    const result = await apiCall('/transcripts/grouped');
     if (result.success) {
       const payload = unwrapApiData(result);
       return {success: true, data: payload};
