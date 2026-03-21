@@ -156,10 +156,13 @@ async function initializeDatabase() {
         title VARCHAR(255),
         content TEXT NOT NULL,
         patient_name VARCHAR(255),
-        patient_id VARCHAR(255),
         source VARCHAR(50) DEFAULT 'manual',
         audio_record_id UUID,
         suggestion_completed BOOLEAN DEFAULT FALSE,
+        verification_status VARCHAR(20) DEFAULT 'unverified',
+        doctor_rating INTEGER,
+        doctor_remarks TEXT,
+        verified_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
@@ -175,6 +178,34 @@ async function initializeDatabase() {
           WHERE table_name = 'transcripts' AND column_name = 'patient_id'
         ) THEN
           ALTER TABLE transcripts ADD COLUMN patient_id VARCHAR(255);
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'verification_status'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN verification_status VARCHAR(20) DEFAULT 'unverified';
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'doctor_rating'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN doctor_rating INTEGER;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'doctor_remarks'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN doctor_remarks TEXT;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'transcripts' AND column_name = 'verified_at'
+        ) THEN
+          ALTER TABLE transcripts ADD COLUMN verified_at TIMESTAMP;
         END IF;
       END $$;
     `);
@@ -336,6 +367,50 @@ async function initializeDatabase() {
       END $$;
     `);
 
+    // AI reasoning audit log table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ai_reasoning_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        transcript_id UUID NOT NULL,
+        audio_record_id UUID,
+        patient_id VARCHAR(255),
+        stage VARCHAR(50) NOT NULL,
+        input_summary TEXT,
+        reasoning_steps JSONB,
+        output_summary TEXT,
+        model_used VARCHAR(100),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Follow-up log table to track individual follow-up interactions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS followup_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        transcript_id UUID NOT NULL,
+        user_uid VARCHAR(16) NOT NULL,
+        patient_id VARCHAR(255),
+        message TEXT NOT NULL,
+        previous_content TEXT,
+        updated_content TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (transcript_id) REFERENCES transcripts(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Doctors table for the verification dashboard
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS doctors (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        doctor_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
@@ -357,6 +432,26 @@ async function initializeDatabase() {
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_audio_records_user_uid ON audio_records(user_uid)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ai_reasoning_log_transcript_id ON ai_reasoning_log(transcript_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ai_reasoning_log_patient_id ON ai_reasoning_log(patient_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_followup_log_transcript_id ON followup_log(transcript_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_followup_log_patient_id ON followup_log(patient_id)
+    `);
+
+    // Data migration: backfill file_url for existing local audio records
+    // This is safe to run multiple times - only updates NULL values
+    await client.query(`
+      UPDATE audio_records 
+      SET file_url = '/uploads/audio/' || file_name 
+      WHERE file_url IS NULL AND file_name IS NOT NULL
     `);
 
     await client.query(`

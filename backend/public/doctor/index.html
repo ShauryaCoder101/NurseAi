@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NurseAI - Doctor Verification Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0F172A;
+      --bg-secondary: #1E293B;
+      --bg-card: #1E293B;
+      --bg-card-alt: #273548;
+      --accent: #14B8A6;
+      --accent-glow: rgba(20, 184, 166, 0.15);
+      --accent-border: rgba(20, 184, 166, 0.3);
+      --text-primary: #F1F5F9;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --border: rgba(148, 163, 184, 0.1);
+      --red: #EF4444;
+      --amber: #F59E0B;
+      --green: #22C55E;
+      --blue: #3B82F6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Navbar */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 32px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .nav-brand span { color: var(--accent); }
+    .nav-tabs {
+      display: flex;
+      background: var(--bg-primary);
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .nav-tab {
+      padding: 8px 24px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+    }
+    .nav-tab:hover { color: var(--text-primary); background: var(--bg-card-alt); }
+    .nav-tab.active {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--red);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    /* Layout */
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - 73px);
+    }
+
+    /* List Column */
+    .list-column {
+      width: 350px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .list-header {
+      padding: 24px 24px 16px;
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-box {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-family: 'Inter';
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-box:focus { border-color: var(--accent); }
+    
+    .visit-list { padding: 12px; }
+    .visit-item {
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+      background: rgba(255,255,255,0.02);
+    }
+    .visit-item:hover { background: var(--bg-card-alt); }
+    .visit-item.active {
+      background: var(--bg-card-alt);
+      border-color: var(--accent-border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .visit-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .visit-patient { font-weight: 600; font-size: 15px; color: var(--text-primary); }
+    .visit-date { font-size: 12px; color: var(--text-muted); }
+    .visit-id { font-size: 12px; color: var(--accent); font-family: monospace; }
+    .visit-nurse-email { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .visit-status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+    .status-unverified { background: rgba(245, 158, 11, 0.15); color: var(--amber); }
+    .status-verified { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+    .status-flagged { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+    
+    .empty-state {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Detail Column */
+    .detail-column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .detail-iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: var(--bg-primary);
+    }
+    .detail-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* Verification Form Drawer */
+    .verification-drawer {
+      height: 220px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--accent-border);
+      padding: 24px 32px;
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .verification-drawer.open { transform: translateY(0); }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .drawer-title { font-size: 18px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+    .drawer-title svg { color: var(--accent); }
+    .form-row { display: flex; gap: 24px; flex: 1; }
+    
+    .form-group.rating { width: 300px; }
+    .form-group.remarks { flex: 1; }
+    
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .rating-slider-container { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      background: transparent;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      margin-top: -8px;
+      box-shadow: 0 0 10px rgba(20, 184, 166, 0.5);
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: var(--border);
+      border-radius: 2px;
+    }
+    .rating-value {
+      background: var(--bg-card-alt);
+      border: 1px solid var(--border);
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .rating-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    
+    textarea.form-control {
+      width: 100%;
+      height: 80px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px;
+      border-radius: 8px;
+      font-family: 'Inter';
+      font-size: 14px;
+      outline: none;
+      resize: none;
+      transition: border-color 0.2s;
+    }
+    textarea.form-control:focus { border-color: var(--accent); }
+    
+    .drawer-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .btn-primary:hover {
+      background: #0d9488;
+      box-shadow: 0 0 15px rgba(20, 184, 166, 0.4);
+    }
+    .btn-primary:disabled {
+      background: var(--border);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Login Overlay */
+    #loginOverlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .login-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--accent-border);
+      padding: 40px;
+      border-radius: 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .login-box::before {
+      content: '';
+      position: absolute;
+      top: -50px; left: -50px; right: -50px; bottom: -50px;
+      background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .login-subtitle {
+      color: var(--text-secondary);
+      text-align: center;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .login-form .form-label { margin-bottom: 6px; }
+    .login-form .form-control {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-family: inherit;
+    }
+    .login-form .btn { width: 100%; padding: 14px; font-size: 15px; }
+    .login-error { color: var(--red); font-size: 13px; text-align: center; margin-top: 16px; display: none; }
+
+    /* Utilities */
+    .hidden { display: none !important; }
+    
+    /* Loading States */
+    .loading-pulse {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login Overlay -->
+  <div id="loginOverlay">
+    <div class="login-box">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </div>
+      <h2 class="login-title">Doctor Portal</h2>
+      <p class="login-subtitle">Sign in to verify AI consultations</p>
+      
+      <form class="login-form" id="loginForm">
+        <label class="form-label">Username</label>
+        <input type="text" id="username" class="form-control" placeholder="doctor_username" required>
+        
+        <label class="form-label">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+        
+        <button type="submit" class="btn btn-primary">Secure Login</button>
+        <div id="loginError" class="login-error">Invalid credentials</div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App (Hidden until login) -->
+  <div id="appContent" class="hidden" style="height: 100%; display: flex; flex-direction: column; flex: 1;">
+    <nav class="navbar">
+      <a href="#" class="nav-brand">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+           <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        Nurse<span>AI</span>
+      </a>
+      
+      <div class="nav-tabs">
+        <div class="nav-tab active" data-tab="unverified">Unverified queue</div>
+        <div class="nav-tab" data-tab="verified">Verified Log</div>
+        <div class="nav-tab" data-tab="flagged">Flagged</div>
+      </div>
+      
+      <div class="nav-actions">
+        <div class="user-profile">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          <span id="doctorNameDisplay">Dr. Smith</span>
+        </div>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+      </div>
+    </nav>
+
+    <div class="main-container">
+      <div class="list-column">
+        <div class="list-header">
+          <input type="text" id="searchBox" class="search-box" placeholder="Search patients or IDs...">
+        </div>
+        <div id="visitList" class="visit-list">
+          <div class="empty-state">Loading visits...</div>
+        </div>
+      </div>
+      
+      <div class="detail-column">
+        <div id="detailEmpty" class="detail-empty">
+          Select a patient visit from the queue to review
+        </div>
+        <iframe id="detailFrame" class="detail-iframe hidden"></iframe>
+        
+        <!-- Verification Form Drawer -->
+        <div id="verificationDrawer" class="verification-drawer">
+          <div class="drawer-header">
+            <div class="drawer-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              Verify Clinical Reasoning
+            </div>
+            <div id="visitIdDisplay" style="font-family: monospace; color: var(--text-muted); font-size: 13px;"></div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group rating">
+              <label class="form-label">AI Logic Rating (1-10)</label>
+              <div class="rating-slider-container">
+                <input type="range" id="ratingSlider" min="1" max="10" value="8">
+                <div class="rating-value" id="ratingValue">8</div>
+              </div>
+              <div class="rating-hint" id="ratingHint">Scores &ge; 7 auto-verify. < 7 flags for review.</div>
+            </div>
+            
+            <div class="form-group remarks">
+              <label class="form-label">Clinical Remarks (Optional)</label>
+              <textarea id="remarksInput" class="form-control" placeholder="Add corrections, notes, or rationale for flagging..."></textarea>
+            </div>
+          </div>
+          
+          <div class="drawer-actions">
+            <button class="btn btn-primary" id="verifyBtn">Submit Verification</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=5"></script>
+</body>
+</html>

@@ -262,6 +262,9 @@ const RecordPage = ({navigation}) => {
   const [proformaModalVisible, setProformaModalVisible] = useState(false);
   const [selectedProforma, setSelectedProforma] = useState(null);
   const [consentModalVisible, setConsentModalVisible] = useState(false);
+  const [existingPatientModalVisible, setExistingPatientModalVisible] = useState(false);
+  const [existingPatientName, setExistingPatientName] = useState('');
+  const [isCheckingPatient, setIsCheckingPatient] = useState(false);
   const [diagnosisText, setDiagnosisText] = useState('');
   const [currentAudioRecordId, setCurrentAudioRecordId] = useState(null);
   const [isAnswerRecording, setIsAnswerRecording] = useState(false);
@@ -455,13 +458,41 @@ const RecordPage = ({navigation}) => {
     }
   }, [canStartRecording, patientName, patientId]);
 
-  const handleStartRecording = useCallback(() => {
+  const handleStartRecording = useCallback(async () => {
     if (!canStartRecording) {
       Alert.alert('Required Fields', 'Please enter both Patient Name and Patient ID before recording.');
       return;
     }
+    
+    setIsCheckingPatient(true);
+    try {
+      const response = await apiService.checkPatientExists(patientId.trim());
+      if (response.success && response.data.exists) {
+        setExistingPatientName(response.data.patientName);
+        setExistingPatientModalVisible(true);
+      } else {
+        setConsentModalVisible(true);
+      }
+    } catch (error) {
+       console.error('Error checking patient:', error);
+       setConsentModalVisible(true);
+    } finally {
+      setIsCheckingPatient(false);
+    }
+  }, [canStartRecording, patientId]);
+
+  const handleProceedWithExisting = useCallback(() => {
+    setExistingPatientModalVisible(false);
+    if (existingPatientName) {
+      setPatientName(existingPatientName);
+    }
     setConsentModalVisible(true);
-  }, [canStartRecording]);
+  }, [existingPatientName]);
+
+  const handleEditId = useCallback(() => {
+    setExistingPatientModalVisible(false);
+    setPatientId('');
+  }, []);
 
   const handleConsentAgree = useCallback(async () => {
     setConsentModalVisible(false);
@@ -1358,34 +1389,56 @@ const RecordPage = ({navigation}) => {
           </View>
         )}
 
-          <TouchableOpacity
-            style={[
-              styles.recordButton, 
-              isRecording && styles.recordButtonActive,
-              (!canStartRecording && !isRecording) || isUploading || (diagnosisText && currentAudioRecordId) ? styles.recordButtonDisabled : null
-            ]}
-            onPress={isRecording ? handleStopRecording : handleStartRecording}
-            activeOpacity={0.8}
-            disabled={(!canStartRecording && !isRecording) || isUploading || Boolean(diagnosisText && currentAudioRecordId)}>
-            <Ionicons 
-              name={isRecording ? 'stop' : 'mic'} 
-              size={32} 
-              color="#FFFFFF" 
-            />
-            <Text style={styles.recordButtonText}>
-              {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
-            </Text>
-          </TouchableOpacity>
-
-          {isRecording && recordingSeconds >= 30 && !firstSegmentUri && (
+          {/* When recording with proforma available, show side-by-side */}
+          {isRecording && recordingSeconds >= 30 && !firstSegmentUri ? (
+            <View style={styles.recordButtonRow}>
+              <TouchableOpacity
+                style={[
+                  styles.recordButton,
+                  styles.recordButtonActive,
+                  styles.recordButtonInRow,
+                  isUploading ? styles.recordButtonDisabled : null
+                ]}
+                onPress={handleStopRecording}
+                activeOpacity={0.8}
+                disabled={isUploading}>
+                <Ionicons name="stop" size={28} color="#FFFFFF" />
+                <Text style={styles.recordButtonText}>
+                  {isUploading ? 'Uploading...' : 'Stop'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.autoProformaButton,
+                  styles.autoProformaButtonInRow,
+                  isGeneratingAutoProforma && styles.recordButtonDisabled,
+                ]}
+                onPress={handleGenerateAutoProforma}
+                activeOpacity={0.8}
+                disabled={isGeneratingAutoProforma}>
+                <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.autoProformaButtonText}>
+                  {isGeneratingAutoProforma ? 'Generating...' : 'Proforma'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
             <TouchableOpacity
-              style={styles.autoProformaButton}
-              onPress={handleGenerateAutoProforma}
+              style={[
+                styles.recordButton, 
+                isRecording && styles.recordButtonActive,
+                (!canStartRecording && !isRecording) || isUploading || (diagnosisText && currentAudioRecordId) ? styles.recordButtonDisabled : null
+              ]}
+              onPress={isRecording ? handleStopRecording : handleStartRecording}
               activeOpacity={0.8}
-              disabled={isGeneratingAutoProforma}>
-              <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.autoProformaButtonText}>
-                {isGeneratingAutoProforma ? 'Generating...' : 'Generate Proforma'}
+              disabled={(!canStartRecording && !isRecording) || isUploading || Boolean(diagnosisText && currentAudioRecordId)}>
+              <Ionicons 
+                name={isRecording ? 'stop' : 'mic'} 
+                size={32} 
+                color="#FFFFFF" 
+              />
+              <Text style={styles.recordButtonText}>
+                {isUploading ? 'Uploading...' : isRecording ? 'Stop Recording' : 'Start Recording'}
               </Text>
             </TouchableOpacity>
           )}
@@ -1434,6 +1487,39 @@ const RecordPage = ({navigation}) => {
               <Pressable style={styles.consentModalAgree} onPress={handleConsentAgree}>
                 <Text style={styles.consentModalAgreeText}>Agree & Start</Text>
               </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={existingPatientModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExistingPatientModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.consentCard}>
+            <View style={styles.consentHeaderRow}>
+              <View style={styles.consentIcon}>
+                <Ionicons name="person-circle" size={24} color="#0EA5E9" />
+              </View>
+              <Text style={styles.consentTitle}>Existing Patient Found</Text>
+            </View>
+            <Text style={styles.consentText}>
+              This Patient ID is already registered to <Text style={{fontWeight: '700', color: '#1E293B'}}>{existingPatientName}</Text>.
+              {'\n\n'}Do you want to edit the ID for a new patient or proceed with recording for {existingPatientName}?
+            </Text>
+            <View style={styles.consentActions}>
+              <TouchableOpacity
+                style={[styles.consentButton, styles.consentButtonSecondary]}
+                onPress={handleEditId}>
+                <Text style={styles.consentButtonSecondaryText}>Edit ID</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.consentButton, styles.consentButtonPrimary]}
+                onPress={handleProceedWithExisting}>
+                <Text style={styles.consentButtonPrimaryText}>Proceed</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1930,6 +2016,17 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  recordButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    maxWidth: 500,
+  },
+  recordButtonInRow: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 16,
+  },
   recordButtonActive: {
     backgroundColor: '#DC2626',
   },
@@ -2036,6 +2133,67 @@ const styles = StyleSheet.create({
   consentModalAgreeText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  consentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 6,
+    width: '100%',
+  },
+  consentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  consentIcon: {
+    marginRight: 12,
+  },
+  consentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  consentText: {
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  consentActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  consentButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  consentButtonSecondary: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  consentButtonSecondaryText: {
+    color: '#475569',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  consentButtonPrimary: {
+    backgroundColor: '#0EA5E9',
+  },
+  consentButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
   modalCard: {
@@ -2169,6 +2327,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  autoProformaButtonInRow: {
+    flex: 1,
+    marginTop: 0,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    borderRadius: 18,
   },
   autoProformaButtonText: {
     color: '#FFFFFF',

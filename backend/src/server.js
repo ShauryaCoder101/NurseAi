@@ -13,6 +13,8 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const transcriptRoutes = require('./routes/transcriptRoutes');
 const audioRoutes = require('./routes/audioRoutes');
 const benchmarkRoutes = require('./routes/benchmarkRoutes');
+const patientRecordRoutes = require('./routes/patientRecordRoutes');
+const doctorRoutes = require('./routes/doctorRoutes');
 
 // Initialize Express app
 const app = express();
@@ -60,6 +62,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/benchmark', express.static(path.join(__dirname, 'public/benchmark')));
+app.use('/verify/doctor', express.static(path.join(__dirname, '../public/doctor')));
 app.use('/', express.static(path.join(__dirname, 'public/site')));
 
 app.use(helmet());
@@ -67,9 +70,8 @@ app.use(cors(corsOptions)); // Enable CORS for frontend
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
 
-if (!isProduction) {
-  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-}
+// Serve uploaded audio files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -83,6 +85,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/transcripts', transcriptRoutes);
 app.use('/api/audio', audioRoutes);
 app.use('/api/benchmark', benchmarkRoutes);
+app.use('/api/patient-record', patientRecordRoutes);
+app.use('/api/doctor', doctorRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -2,6 +2,8 @@
 const {v4: uuidv4} = require('uuid');
 const {dbHelpers} = require('../config/database');
 const {generateGeminiFollowup, generateProformaResponse} = require('../services/geminiService');
+const {fetchPatientHistory} = require('./audioController');
+const {regeneratePatientHtml} = require('../services/patientRecordHtmlService');
 
 // Get all transcripts
 async function getTranscripts(req, res) {
@@ -10,7 +12,8 @@ async function getTranscripts(req, res) {
     const {patientName, patientId} = req.query;
 
     // Build query with optional filters
-    let query = 'SELECT * FROM transcripts WHERE user_uid = $1';
+    // Exclude flagged visits from the nurse's primary view
+    let query = "SELECT * FROM transcripts WHERE user_uid = $1 AND verification_status != 'flagged'";
     const params = [userId];
     let paramIndex = 2;
 
@@ -50,6 +53,7 @@ async function getTranscripts(req, res) {
         source: transcript.source || 'manual',
         audioRecordId: transcript.audio_record_id || null,
         suggestionCompleted: transcript.suggestion_completed || false,
+        verificationStatus: transcript.verification_status,
       };
     });
 
@@ -94,9 +98,10 @@ async function getTranscript(req, res) {
         patientId: transcript.patient_id,
         source: transcript.source || 'manual',
         audioRecordId: transcript.audio_record_id || null,
-        suggestionCompleted: transcript.suggestion_completed || false,
+        completed: transcript.suggestion_completed,
         createdAt: transcript.created_at,
         updatedAt: transcript.updated_at,
+        verificationStatus: transcript.verification_status,
       },
     });
   } catch (error) {
@@ -412,22 +417,81 @@ async function followupGeminiSuggestion(req, res) {
       });
     }
 
-    const updatedContent = await generateGeminiFollowup({
+    const effectivePatientId = patientId || transcript.patient_id;
+
+    // Fetch full patient history for stateful follow-up
+    const patientHistory = await fetchPatientHistory(effectivePatientId);
+
+    const followupResult = await generateGeminiFollowup({
       previousResponse: transcript.content,
       followupText: message,
-      patientId: patientId || transcript.patient_id,
+      patientId: effectivePatientId,
+      patientHistory,
     });
 
-    await dbHelpers.run(
-      'UPDATE transcripts SET content = $1, updated_at = NOW() WHERE id = $2 AND user_uid = $3',
-      [updatedContent, id, userId]
-    );
+    const updatedContent = followupResult.text || followupResult;
+    const followupReasoning = followupResult.reasoning || null;
+    const followupModel = followupResult.modelUsed || null;
+
+    // We no longer update the main transcript content with the follow-up answer.
+    // The original prescription/diagnosis remains intact.
+    // The follow-up interaction is saved purely in the followup_log.
+
+    // Log the follow-up interaction for audit trail
+    try {
+      await dbHelpers.run(
+        `INSERT INTO followup_log
+          (transcript_id, user_uid, patient_id, message, previous_content, updated_content)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          id,
+          userId,
+          effectivePatientId || null,
+          message,
+          transcript.content,
+          updatedContent,
+        ]
+      );
+    } catch (logErr) {
+      console.error('Failed to save follow-up log:', logErr);
+    }
+
+    // Save AI reasoning audit log for follow-up
+    if (followupReasoning) {
+      try {
+        await dbHelpers.run(
+          `INSERT INTO ai_reasoning_log
+            (transcript_id, audio_record_id, patient_id, stage, input_summary, reasoning_steps, output_summary, model_used)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            id,
+            transcript.audio_record_id || null,
+            effectivePatientId || null,
+            'followup',
+            followupReasoning.input_summary || null,
+            JSON.stringify(followupReasoning.steps || followupReasoning),
+            followupReasoning.output_summary || null,
+            followupModel,
+          ]
+        );
+      } catch (reasoningErr) {
+        console.error('Failed to save follow-up reasoning:', reasoningErr);
+      }
+    }
+
+    // Regenerate patient HTML file after follow-up
+    if (effectivePatientId) {
+      regeneratePatientHtml(userId, effectivePatientId).catch((e) =>
+        console.error('HTML regen error (followup):', e)
+      );
+    }
 
     res.json({
       success: true,
       data: {
         id,
-        content: updatedContent,
+        content: transcript.content, // Return original content
+        followupAnswer: updatedContent, // Return the new standalone answer
       },
     });
   } catch (error) {
@@ -599,7 +663,7 @@ async function getGroupedTranscripts(req, res) {
     const userId = req.userId;
     const rows = await dbHelpers.all(
       `SELECT id, title, content, patient_name, patient_id, source,
-              audio_record_id, suggestion_completed, created_at
+              audio_record_id, suggestion_completed, created_at, verification_status
        FROM transcripts
        WHERE user_uid = $1
        ORDER BY created_at DESC`,
@@ -625,6 +689,7 @@ async function getGroupedTranscripts(req, res) {
         audioRecordId: row.audio_record_id,
         suggestionCompleted: row.suggestion_completed,
         createdAt: row.created_at,
+        verificationStatus: row.verification_status,
       });
     }
 

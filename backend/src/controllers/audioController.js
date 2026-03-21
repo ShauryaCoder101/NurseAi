@@ -4,9 +4,11 @@ const fs = require('fs');
 const {dbHelpers} = require('../config/database');
 const {generateGeminiSuggestion, generateDiagnosisFromAudio, generatePrescription, generateExtractedProforma} = require('../services/geminiService');
 const {uploadAudioFile, isStorageConfigured} = require('../services/supabaseStorage');
+const {regeneratePatientHtml} = require('../services/patientRecordHtmlService');
 
 const AUDIO_UPLOAD_DIR = path.join(__dirname, '../../uploads/audio');
 
+// Exported for reuse by other controllers
 async function fetchPatientHistory(patientId) {
   if (!patientId) return '';
   const rows = await dbHelpers.all(
@@ -17,7 +19,8 @@ async function fetchPatientHistory(patientId) {
   );
   if (!rows || rows.length === 0) return '';
   return rows.map((r) => {
-    const date = r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : 'unknown date';
+    // Show exact timestamp as requested
+    const date = r.created_at ? new Date(r.created_at).toLocaleString() : 'unknown timestamp';
     const type = r.source === 'gemini-diagnosis' ? 'diagnosis' : 'prescription';
     return `Visit (${date}, ${type}):\n${r.content}`;
   }).join('\n\n---\n\n');
@@ -140,6 +143,15 @@ async function uploadAudio(req, res) {
       } catch (uploadError) {
         console.error('Supabase audio upload failed:', uploadError);
       }
+    } else {
+      // Fallback for local storage if Supabase isn't configured
+      // Assuming server runs on the same domain/port, serve via the /uploads static route.
+      // E.g. /uploads/audio/my_file.mp4
+      fileUrl = `/uploads/audio/${encodeURIComponent(fileName)}`;
+      await dbHelpers.run(
+        'UPDATE audio_records SET file_url = $1 WHERE id = $2',
+        [fileUrl, result.lastID]
+      );
     }
 
     let diagnosisText = null;
@@ -158,35 +170,61 @@ async function uploadAudio(req, res) {
           audioMimeTypes.push(audio2File.mimetype || 'audio/mp4');
         }
         const patientHistory = await fetchPatientHistory(patientId);
-        diagnosisText = await generateDiagnosisFromAudio({
+        const diagnosisResult = await generateDiagnosisFromAudio({
           audioPaths,
           mimeTypes: audioMimeTypes,
           patientId,
           patientHistory,
         });
+        diagnosisText = diagnosisResult.text || diagnosisResult;
+        const diagnosisReasoning = diagnosisResult.reasoning || null;
+        const diagnosisModel = diagnosisResult.modelUsed || null;
         if (!diagnosisText || !diagnosisText.trim()) {
           diagnosisText = null;
           geminiErrorMessage = 'Gemini returned an empty response.';
         }
-      }
 
-      if (diagnosisText) {
-        const transcriptResult = await dbHelpers.run(
-          `INSERT INTO transcripts
-            (id, user_uid, title, content, patient_name, patient_id, source, audio_record_id, suggestion_completed, created_at, updated_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW())
-           RETURNING id`,
-          [
-            userUid,
-            patientId ? `2Diagnosis - ${patientId}` : '2Diagnosis',
-            diagnosisText,
-            patientName || null,
-            patientId || null,
-            'gemini-diagnosis',
-            result.lastID,
-          ]
-        );
-        transcriptId = transcriptResult.lastID;
+        if (diagnosisText) {
+          const transcriptResult = await dbHelpers.run(
+            `INSERT INTO transcripts
+              (id, user_uid, title, content, patient_name, patient_id, source, audio_record_id, suggestion_completed, created_at, updated_at)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW())
+             RETURNING id`,
+            [
+              userUid,
+              patientId ? `2Diagnosis - ${patientId}` : '2Diagnosis',
+              diagnosisText,
+              patientName || null,
+              patientId || null,
+              'gemini-diagnosis',
+              result.lastID,
+            ]
+          );
+          transcriptId = transcriptResult.lastID;
+
+          // Save AI reasoning audit log
+          if (diagnosisReasoning && transcriptId) {
+            try {
+              await dbHelpers.run(
+                `INSERT INTO ai_reasoning_log
+                  (transcript_id, audio_record_id, patient_id, stage, input_summary, reasoning_steps, output_summary, model_used)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                  transcriptId,
+                  result.lastID,
+                  patientId || null,
+                  'diagnosis',
+                  diagnosisReasoning.input_summary || null,
+                  JSON.stringify(diagnosisReasoning.steps || diagnosisReasoning),
+                  diagnosisReasoning.output_summary || null,
+                  diagnosisModel,
+                ]
+              );
+            } catch (reasoningErr) {
+              console.error('Failed to save diagnosis reasoning:', reasoningErr);
+            }
+          }
+        }
       }
     } catch (geminiError) {
       console.error('Gemini processing error:', geminiError);
@@ -200,6 +238,13 @@ async function uploadAudio(req, res) {
         geminiErrorMessage =
           'Too many concurrent users. Please try again in 60 seconds.';
       }
+    }
+
+    // Regenerate patient HTML file after processing
+    if (patientId) {
+      regeneratePatientHtml(userUid, patientId).catch((e) =>
+        console.error('HTML regen error (upload):', e)
+      );
     }
 
     res.json({
@@ -401,13 +446,17 @@ async function finalizePrescription(req, res) {
     }
 
     const patientHistory = await fetchPatientHistory(audioRecord.patient_id);
-    const prescriptionText = await generatePrescription({
+    const prescriptionResult = await generatePrescription({
       diagnosisText: diagnosisTranscript.content,
       answerAudioPath,
       answerMimeType,
       patientId: audioRecord.patient_id,
       patientHistory,
     });
+
+    const prescriptionText = prescriptionResult.text || prescriptionResult;
+    const prescriptionReasoning = prescriptionResult.reasoning || null;
+    const prescriptionModel = prescriptionResult.modelUsed || null;
 
     if (!prescriptionText || !prescriptionText.trim()) {
       return res.status(502).json({
@@ -433,6 +482,36 @@ async function finalizePrescription(req, res) {
         audioRecord.id,
       ]
     );
+
+    // Save AI reasoning audit log for prescription
+    if (prescriptionReasoning && transcriptResult.lastID) {
+      try {
+        await dbHelpers.run(
+          `INSERT INTO ai_reasoning_log
+            (transcript_id, audio_record_id, patient_id, stage, input_summary, reasoning_steps, output_summary, model_used)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            transcriptResult.lastID,
+            audioRecord.id,
+            audioRecord.patient_id || null,
+            'prescription',
+            prescriptionReasoning.input_summary || null,
+            JSON.stringify(prescriptionReasoning.steps || prescriptionReasoning),
+            prescriptionReasoning.output_summary || null,
+            prescriptionModel,
+          ]
+        );
+      } catch (reasoningErr) {
+        console.error('Failed to save prescription reasoning:', reasoningErr);
+      }
+    }
+
+    // Regenerate patient HTML file after prescription
+    if (audioRecord.patient_id) {
+      regeneratePatientHtml(userUid, audioRecord.patient_id).catch((e) =>
+        console.error('HTML regen error (prescribe):', e)
+      );
+    }
 
     res.json({
       success: true,
@@ -521,4 +600,5 @@ module.exports = {
   retryGeminiForAudioRecord,
   finalizePrescription,
   extractProforma,
+  fetchPatientHistory,
 };

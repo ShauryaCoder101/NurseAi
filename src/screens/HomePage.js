@@ -231,11 +231,17 @@ const HomePage = ({navigation}) => {
       );
       if (result.success) {
         setGeminiSuggestions((prev) =>
-          prev.map((suggestion) =>
-            suggestion.id === item.id
-              ? {...suggestion, content: result.data?.content || suggestion.content}
-              : suggestion
-          )
+          prev.map((suggestion) => {
+            if (suggestion.id === item.id) {
+              const newFollowups = [...(suggestion.followups || [])];
+              newFollowups.push({
+                question: message,
+                answer: result.data?.followupAnswer || result.data?.content || ''
+              });
+              return {...suggestion, followups: newFollowups};
+            }
+            return suggestion;
+          })
         );
         setAskAiInputs((prev) => ({...prev, [item.id]: ''}));
       } else {
@@ -333,9 +339,17 @@ const HomePage = ({navigation}) => {
                 accessibilityLabel="Toggle Gemini suggestion"
                 accessibilityHint="Tap to expand or collapse the suggestion text">
                 <View style={styles.geminiCardHeader}>
-                  <Text style={styles.geminiSubtitle}>
-                    {item.patientName || 'Unknown Patient'} (ID: {item.patientId || 'N/A'})
-                  </Text>
+                  <View style={{flexDirection: 'column', flex: 1}}>
+                    <Text style={styles.geminiSubtitle}>
+                      {item.patientName || 'Unknown Patient'} (ID: {item.patientId || 'N/A'})
+                    </Text>
+                    {item.verificationStatus === 'verified' && (
+                      <View style={styles.verifiedBadge}>
+                        <Ionicons name="shield-checkmark" size={14} color="#059669" />
+                        <Text style={styles.verifiedText}>Verified Analysis</Text>
+                      </View>
+                    )}
+                  </View>
                   <Pressable
                     style={[
                       styles.flagButton,
@@ -354,6 +368,24 @@ const HomePage = ({navigation}) => {
                   numberOfLines={isExpanded ? undefined : 5}>
                   {item.content}
                 </Text>
+
+                {isExpanded && item.followups && item.followups.length > 0 && (
+                  <View style={styles.followupsContainer}>
+                    {item.followups.map((f, idx) => (
+                      <View key={idx} style={styles.followupItem}>
+                        <View style={styles.followupQuestionRow}>
+                          <Ionicons name="chatbubble-ellipses" size={16} color="#0EA5E9" style={{marginTop: 2}} />
+                          <Text style={styles.followupQuestionText}>Q: {f.question}</Text>
+                        </View>
+                        <View style={styles.followupAnswerRow}>
+                          <Ionicons name="medical" size={16} color="#059669" style={{marginTop: 2}} />
+                          <Text style={styles.followupAnswerText}>A: {f.answer}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 <Text style={styles.geminiHint}>
                   {isExpanded ? 'Tap to collapse' : 'Tap to expand'}
                 </Text>
@@ -587,6 +619,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1E293B',
   },
+  followupsContainer: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
+  },
+  followupItem: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+  },
+  followupQuestionRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  followupQuestionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0EA5E9',
+    marginLeft: 6,
+    flex: 1,
+  },
+  followupAnswerRow: {
+    flexDirection: 'row',
+  },
+  followupAnswerText: {
+    fontSize: 13,
+    color: '#334155',
+    marginLeft: 6,
+    flex: 1,
+    lineHeight: 18,
+  },
   geminiHint: {
     marginTop: 8,
     fontSize: 12,
@@ -600,11 +665,11 @@ const styles = StyleSheet.create({
   },
   flagButton: {
     backgroundColor: '#DC2626',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: -10,
+    alignSelf: 'flex-start',
   },
   flagButtonDisabled: {
     opacity: 0.6,
@@ -615,6 +680,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  verifiedText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   flagModalOverlay: {
     flex: 1,
@@ -762,6 +843,23 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     marginTop: 8,
     textAlign: 'center',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  verifiedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+    letterSpacing: 0.3,
   },
 });
 

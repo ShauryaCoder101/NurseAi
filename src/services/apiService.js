@@ -600,6 +600,26 @@ export const apiService = {
     return result;
   },
 
+  // Get comprehensive patient record (all visits, reasoning, follow-ups)
+  getPatientRecord: async (patientId) => {
+    const result = await apiCall(`/patient-record/${encodeURIComponent(patientId)}`);
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
+  // Check if a patient ID already exists
+  checkPatientExists: async (patientId) => {
+    const result = await apiCall(`/patient-record/${encodeURIComponent(patientId)}/check`);
+    if (result.success) {
+      const payload = unwrapApiData(result);
+      return {success: true, data: payload};
+    }
+    return result;
+  },
+
   // Get all transcripts (history)
   getTranscripts: async (params = {}) => {
     const cacheKey = `transcripts-${JSON.stringify(params)}`;

@@ -24,6 +24,44 @@ let lastGeminiRequestAt = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const REASONING_PROMPT_SUFFIX = `
+
+IMPORTANT AUDIT REQUIREMENT: After your main clinical response, you MUST include a reasoning audit section.
+Delimit it exactly with ===REASONING_START=== and ===REASONING_END=== markers.
+Inside those markers, provide a valid JSON object (no markdown, no code fences) with this structure:
+{
+  "input_summary": "brief summary of what patient data/audio you received",
+  "steps": [
+    {"step": 1, "action": "what you did", "detail": "why you did it", "conclusion": "what you concluded"}
+  ],
+  "output_summary": "brief summary of your final recommendation/output"
+}
+This reasoning section is for internal audit purposes only and will be stripped from the patient-facing output.`;
+
+function parseReasoningFromResponse(fullText) {
+  const startMarker = '===REASONING_START===';
+  const endMarker = '===REASONING_END===';
+  const startIdx = fullText.indexOf(startMarker);
+  const endIdx = fullText.indexOf(endMarker);
+
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    return { text: fullText.trim(), reasoning: null };
+  }
+
+  const clinicalText = (fullText.slice(0, startIdx) + fullText.slice(endIdx + endMarker.length)).trim();
+  const reasoningRaw = fullText.slice(startIdx + startMarker.length, endIdx).trim();
+
+  let reasoning = null;
+  try {
+    reasoning = JSON.parse(reasoningRaw);
+  } catch (e) {
+    // If JSON parsing fails, store as raw text object
+    reasoning = { raw: reasoningRaw, parseError: true };
+  }
+
+  return { text: clinicalText, reasoning };
+}
+
 class GeminiRateLimitError extends Error {
   constructor(message, retryAfterMs) {
     super(message);
@@ -52,7 +90,7 @@ const fetchWithRetry = async (endpoint, body) => {
   while (true) {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
 
@@ -215,211 +253,226 @@ NOTE: if the audio doesnt contain anything understandable, then please send the 
 
 Tone: Concise, professional, and intellectually honest about resource limitations`;
 
-async function generateGeminiSuggestion({audioPath, mimeType, patientId}) {
+async function generateGeminiSuggestion({ audioPath, mimeType, patientId }) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
     }
 
-  const audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
-  const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+    const audioBase64 = fs.readFileSync(audioPath, { encoding: 'base64' });
+    const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
 
-  const body = {
-    contents: [
+    const body = {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: promptWithPatient },
+            {
+              inlineData: {
+                mimeType,
+                data: audioBase64,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    if (typeof fetch !== 'function') {
+      throw new Error('Fetch API is not available. Use Node.js 18+.');
+    }
+
+    const modelName = await resolveModelName();
+    if (!modelName) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    let response = await fetchWithRetry(endpoint, body);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      }
+      if (response.status === 404) {
+        const fallback = getFallbackModelName();
+        if (fallback && fallback !== modelName) {
+          console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
+          cachedModelName = fallback;
+          response = await fetchWithRetry(
+            `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+            body
+          );
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+            }
+            throw new Error(`Gemini API error (fallback): ${retryError}`);
+          }
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
+        }
+      } else {
+        throw new Error(`Gemini API error: ${errorText}`);
+      }
+    }
+
+    const data = await response.json();
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
+
+    const transcriptText = text.trim();
+
+    if (GEMINI_LOG_ENABLED) {
+      try {
+        if (!fs.existsSync(GEMINI_LOG_DIR)) {
+          fs.mkdirSync(GEMINI_LOG_DIR, { recursive: true });
+        }
+        const logEntry = {
+          timestamp: new Date().toISOString(),
+          patientId: patientId || null,
+          audioPath,
+          model: GEMINI_MODEL,
+          transcript: transcriptText,
+          rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
+        };
+        fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
+      } catch (logError) {
+        console.error('Failed to write Gemini log:', logError);
+      }
+    }
+
+    return transcriptText;
+  });
+}
+
+async function generateGeminiFollowup({ previousResponse, followupText, patientId, patientHistory }) {
+  return runGeminiThrottled(async () => {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not set');
+    }
+
+    const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+
+    const contentsParts = [
+      {
+        role: 'user',
+        parts: [{ text: promptWithPatient }],
+      },
+    ];
+
+    // Include full patient history for stateful follow-ups
+    if (patientHistory) {
+      contentsParts.push({
+        role: 'user',
+        parts: [{ text: `--- LONGITUDINAL PATIENT HISTORY (all previous visits) ---\n${patientHistory}\n--- END PATIENT HISTORY ---` }],
+      });
+    }
+
+    contentsParts.push(
+      {
+        role: 'model',
+        parts: [{ text: previousResponse || '' }],
+      },
       {
         role: 'user',
         parts: [
-          {text: promptWithPatient},
           {
-            inlineData: {
-              mimeType,
-              data: audioBase64,
-            },
+            text:
+              `${followupText}\n\n` +
+              'You have the full patient history above. Please answer this follow-up question concisely as a clinical diagnostician. ' +
+              'DO NOT rewrite or edit the original prescription or diagnosis. Just provide a direct, standalone answer to the question based on the longitudinal history. ' +
+              'Keep it brief and focused on the immediate clinical question.' +
+              REASONING_PROMPT_SUFFIX,
           },
         ],
-      },
-    ],
-  };
+      }
+    );
 
-  if (typeof fetch !== 'function') {
-    throw new Error('Fetch API is not available. Use Node.js 18+.');
-  }
+    const body = { contents: contentsParts };
 
-  const modelName = await resolveModelName();
-  if (!modelName) {
-    throw new Error('No compatible Gemini model found for generateContent.');
-  }
-
-  const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  let response = await fetchWithRetry(endpoint, body);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    if (response.status === 429) {
-      throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+    if (typeof fetch !== 'function') {
+      throw new Error('Fetch API is not available. Use Node.js 18+.');
     }
-    if (response.status === 404) {
-      const fallback = getFallbackModelName();
-      if (fallback && fallback !== modelName) {
-        console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
-        cachedModelName = fallback;
-        response = await fetchWithRetry(
-          `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
-          body
-        );
-        if (!response.ok) {
-          const retryError = await response.text();
-          if (response.status === 429) {
-            throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+
+    const modelName = await resolveModelName();
+    if (!modelName) {
+      throw new Error('No compatible Gemini model found for generateContent.');
+    }
+
+    const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    let response = await fetchWithRetry(endpoint, body);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (response.status === 429) {
+        throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+      }
+      if (response.status === 404) {
+        const fallback = getFallbackModelName();
+        if (fallback && fallback !== modelName) {
+          console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
+          cachedModelName = fallback;
+          response = await fetchWithRetry(
+            `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+            body
+          );
+          if (!response.ok) {
+            const retryError = await response.text();
+            if (response.status === 429) {
+              throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+            }
+            throw new Error(`Gemini API error (fallback): ${retryError}`);
           }
-          throw new Error(`Gemini API error (fallback): ${retryError}`);
+        } else {
+          throw new Error(`Gemini API error: ${errorText}`);
         }
       } else {
         throw new Error(`Gemini API error: ${errorText}`);
       }
-    } else {
-      throw new Error(`Gemini API error: ${errorText}`);
-    }
-  }
-
-  const data = await response.json();
-  const text =
-    data?.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text)
-      .filter(Boolean)
-      .join('\n') || '';
-
-  const transcriptText = text.trim();
-
-  if (GEMINI_LOG_ENABLED) {
-    try {
-      if (!fs.existsSync(GEMINI_LOG_DIR)) {
-        fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
-      }
-      const logEntry = {
-        timestamp: new Date().toISOString(),
-        patientId: patientId || null,
-        audioPath,
-        model: GEMINI_MODEL,
-        transcript: transcriptText,
-        rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
-      };
-      fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
-    } catch (logError) {
-      console.error('Failed to write Gemini log:', logError);
-    }
-  }
-
-    return transcriptText;
-  });
-}
-
-async function generateGeminiFollowup({previousResponse, followupText, patientId}) {
-  return runGeminiThrottled(async () => {
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not set');
     }
 
-  const promptWithPatient = `${GEMINI_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+    const data = await response.json();
+    const rawText =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('\n') || '';
 
-  const contents = [
-    {
-      role: 'user',
-      parts: [{text: promptWithPatient}],
-    },
-    {
-      role: 'model',
-      parts: [{text: previousResponse || ''}],
-    },
-    {
-      role: 'user',
-      parts: [
-        {
-          text:
-            `${followupText}\n\n` +
-            'Please update the response using the same structure. ' +
-            'If missing data is now provided, update section 8 accordingly.',
-        },
-      ],
-    },
-  ];
+    const parsed = parseReasoningFromResponse(rawText);
+    const transcriptText = parsed.text;
 
-  const body = {contents};
-
-  if (typeof fetch !== 'function') {
-    throw new Error('Fetch API is not available. Use Node.js 18+.');
-  }
-
-  const modelName = await resolveModelName();
-  if (!modelName) {
-    throw new Error('No compatible Gemini model found for generateContent.');
-  }
-
-  const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-  let response = await fetchWithRetry(endpoint, body);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    if (response.status === 429) {
-      throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
-    }
-    if (response.status === 404) {
-      const fallback = getFallbackModelName();
-      if (fallback && fallback !== modelName) {
-        console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
-        cachedModelName = fallback;
-        response = await fetchWithRetry(
-          `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
-          body
-        );
-        if (!response.ok) {
-          const retryError = await response.text();
-          if (response.status === 429) {
-            throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
-          }
-          throw new Error(`Gemini API error (fallback): ${retryError}`);
+    if (GEMINI_LOG_ENABLED) {
+      try {
+        if (!fs.existsSync(GEMINI_LOG_DIR)) {
+          fs.mkdirSync(GEMINI_LOG_DIR, { recursive: true });
         }
-      } else {
-        throw new Error(`Gemini API error: ${errorText}`);
+        const logEntry = {
+          timestamp: new Date().toISOString(),
+          patientId: patientId || null,
+          model: GEMINI_MODEL,
+          transcript: transcriptText,
+          reasoning: parsed.reasoning,
+          rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
+          type: 'followup',
+        };
+        fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
+      } catch (logError) {
+        console.error('Failed to write Gemini log:', logError);
       }
-    } else {
-      throw new Error(`Gemini API error: ${errorText}`);
     }
-  }
 
-  const data = await response.json();
-  const text =
-    data?.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text)
-      .filter(Boolean)
-      .join('\n') || '';
-
-  const transcriptText = text.trim();
-
-  if (GEMINI_LOG_ENABLED) {
-    try {
-      if (!fs.existsSync(GEMINI_LOG_DIR)) {
-        fs.mkdirSync(GEMINI_LOG_DIR, {recursive: true});
-      }
-      const logEntry = {
-        timestamp: new Date().toISOString(),
-        patientId: patientId || null,
-        model: GEMINI_MODEL,
-        transcript: transcriptText,
-        rawResponse: GEMINI_LOG_INCLUDE_RAW ? data : undefined,
-        type: 'followup',
-      };
-      fs.appendFileSync(GEMINI_LOG_FILE, `${JSON.stringify(logEntry)}\n`, 'utf8');
-    } catch (logError) {
-      console.error('Failed to write Gemini log:', logError);
-    }
-  }
-
-    return transcriptText;
+    return { text: transcriptText, reasoning: parsed.reasoning, modelUsed: modelName };
   });
 }
 
-const generateBenchmarkResponse = async ({modelName, promptText}) => {
+const generateBenchmarkResponse = async ({ modelName, promptText }) => {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
@@ -434,7 +487,7 @@ const generateBenchmarkResponse = async ({modelName, promptText}) => {
       contents: [
         {
           role: 'user',
-          parts: [{text: promptText}],
+          parts: [{ text: promptText }],
         },
       ],
     };
@@ -481,10 +534,10 @@ const generateBenchmarkResponse = async ({modelName, promptText}) => {
 const DIAGNOSIS_PROMPT = `Role: You are "2Diagnosis," a high-efficiency diagnostic assistant positioned between the initial clinician interview and the final management plan.
 
 Objective: Review clinical transcripts to identify the most likely "bucket" (differential), screen for red flags, and provide high-yield follow-up steps.
-
+Note: If patient's earlier visit data is also present then the questions should be asked considering the previous data as well(only if you find it related to current issue).
 Response Structure:
 Clinical Rationale: A 2–3 sentence summary of the case, highlighting the most likely differential and any immediate "red flag" concerns (e.g., CHF, DVT, Sepsis).
-Clarifying Questions: 3–4 high-discriminating questions. Always include the local language translation (e.g., Bengali for rural WB contexts) in parentheses. Focus on "Bucket" differentiation (e.g., Cardiac vs. Renal vs. Anemia).
+Clarifying Questions: 3–4 high-discriminating questions. Always include the local language translation (e.g., Bengali for rural WB contexts) in parentheses. Focus on "Bucket" differentiation (e.g., Cardiac vs. Renal vs. Anemia). Ask questions on the patient history aswell if related to the the current issue.
 Physical Exam & Point-of-Care (POC): Recommend 3–5 specific maneuvers or bedside tests (e.g., JVP, Pitting, Auscultation, Urine Dipstick). Briefly state why each is being requested.
 
 Tone & Style:
@@ -493,12 +546,12 @@ Action-Oriented: Focus on what the clinician needs to do now to reach a diagnosi
 Peer-to-Peer: Speak as a supportive, expert colleague, not a textbook.
 
 Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
-
+Note: If patient's earlier visit data is also present then the assesment should be done considering the previous data as well.
 Constraint: Do not recommend a full management/treatment plan. Your role ends at the diagnostic and investigative recommendations.`;
 
 const PRESCRIPTION_PROMPT = `Role & Context
 You are "3Prescription," the final stage of a clinical decision-support workflow designed for Nurse Practitioners and medical students in rural West Bengal. Your objective is to synthesize the initial screening (from 1Proforma) and the diagnostic clarifications (from 2Diagnosis) into a pragmatic, tiered management plan. You prioritize patient safety and resource stewardship over exhaustive diagnostic certainty.
-
+Note: If patient's earlier visit data is also present then the assesment should be done considering the previous data as well(only if you find it related to current issue).
 Core Management Priorities
 When formulating your plan, you must adhere to these priorities in order:
 Triage & Escalation: Immediately identify if there is a high probability of a high-risk clinical event. If so, adopt a "Stabilize and Transfer" approach.
@@ -533,6 +586,7 @@ Tone: Authentic, supportive, and peer-to-peer.
 Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
 
 Output Format
+state one provisional diagnosis and three differential diagnosis and add a very very concise reasoning for each in bengali (10-50 words).
 1) Prescription
 Disposition: State clearly if this is "Local Management" or "Stabilize and Transfer."
 Diagnostic Tests: List as Tier 1 (Immediate/Low Cost) and Tier 2 (Referral/Advanced).
@@ -554,6 +608,57 @@ Source Validation:
 Guideline used: [Name of guideline retrieved via tool]
 Last Verified: [Date/Year from the search result]
 Confidence Level: [High/Medium/Low based on search match]`;
+
+const PROFORMA_GEM_PROMPT = `Role: You are Proforma Gem, a specialized clinical decision support AI designed to assist Nurse Practitioners and medical students in rural West Bengal, India. Your goal is to optimize the first 5–6 minutes of a patient interview to reach a diagnosis efficiently while ensuring "do-not-miss" conditions are addressed.
+
+
+Contextual Awareness:
+Geography: Rural West Bengal. Consider local endemicity (e.g., Scrub Typhus, Malaria, Japanese Encephalitis, Visceral Leishmaniasis, etc.).
+Temporality: Always check the current month and year. Adjust differentials based on seasonal peaks (e.g., pre-monsoon, monsoon, winter).
+
+Constraints: The initial interview is capped at 6 minutes. You have one follow-up opportunity for clarifying questions.
+
+STG-Integration Protocol (Mandatory):
+Mandatory Search: For every presenting complaint, you must first identify the relevant Standard Treatment Guidelines (STGs) from the Government of India (GoI), National Health Mission (NHM), or WHO (e.g., "NHM STG for Neonatal Sepsis", "Anemia Mukt Bharat", or "ICMR Diabetes Guidelines").
+Calibration: Use STGs to define "Must-Ask" questions and physiological thresholds (e.g., Respiratory Rate limits, BP cut-offs).
+Preventative Check: For ANC or pediatric visits, cross-reference the National Immunization Schedule and mandatory supplementation protocols (e.g., IFA, Vitamin A, Albendazole).
+
+
+Response Format: Generate a comprehensive Proforma Interview Guide organized into these sections:
+1. HPI: The Core Narrative
+Use SOCRATES for pain or OPQRST for functional complaints.
+Frame as patient-centered questions exploring illness trajectory
+2. Expanded ROS & Red Flags (STG-Informed)
+List "Must-Ask" questions for the specific system involved.
+Highlight 3–5 "Stop-Sign" Symptoms requiring immediate referral based on STG danger signs (e.g., Inability to feed, convulsions, or severe epigastric pain).
+In the Expanded ROS section, always include broad, systemic questions (Weight loss, Fever, Fatigue, Appetite, etc) regardless of the chief complaint to screen for undiagnosed chronic conditions such as infections, cancer, endocrine, rheumatologic diseases, anemia, cardiopulmonary symptoms etc. Things that are common in the age group specified.
+3. Social & Environmental factors (as relevant to the presenting complaints.)
+Water/Sanitation: Drinking source (Tube well vs. Pond), open defecation, and monsoon flooding.
+Occupational/Zoonotic: Rice paddy work (Lepto), livestock exposure, or stagnant water.
+Nutritional: Dietary diversity (Iron/Protein), Pica (clay/mud eating), and cooking fuel (biomass smoke).
+Tobacco and alcohol use
+sexual history, only if relevant to the presenting complaint.
+4. History & "Rural Pharmacy" Check
+GPLA & Obstetric History: (If applicable) Gravida, Para, Living, Abortion, and birth interval.
+TB/Malaria/HIV Screen: Previous incomplete treatment courses.
+The "Quack" Inquiry: Specific questions about "loose" pills, local herbal remedies, or "gas" medicine from non-medical shops.
+5. High-Yield Physical Exam & Vitals
+Vitals: Include Shock Index (HR/SBP) or Capillary Refill Time -- only if relevant.
+Maneuvers: 3–5 signs (e.g., Bitot's spots, Splenomegaly, Basal Crepitations, or checking for Pedal Edema)--whatever is relevant.
+
+
+
+Operational Instructions:
+Tone: Authentic, supportive, clinical, and peer-like.
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
+Default Logic: For vague complaints, default to high-mortality local etiologies (e.g., Sepsis, Eclampsia, Heat Stroke) until ruled out by STG criteria.
+For all symptoms, include Bengali colloquial terms in Bengali script (e.g., instead of just 'breathlessness,' use the Bengali term). Don't include English transliteration.
+
+6. Differential Calibration Table (Mandatory)
+Every response MUST conclude with a "Differential Calibration" table.
+- Columns: | Potential Diagnosis | Key Indicator | STG Action |
+- Content: Include at least 3–4 differentials ranging from common local presentations to high-mortality "do-not-miss" conditions.
+- STG Action: Must specify the immediate clinical step (e.g., specific antibiotic, dosage, or urgent referral criteria) as per NHM/GoI guidelines.`;
 
 const EXTRACTION_PROMPT = `Task: Extract specific clinical and demographic data from the following patient-nurse transcript.
 
@@ -589,60 +694,14 @@ Chief Complaint
 
 [Insert verbatim patient quote here]`;
 
-const PROFORMA_GEM_PROMPT = `Role: You are Proforma Gem, a specialized clinical decision support AI designed to assist Nurse Practitioners and medical students in rural West Bengal, India. Your goal is to optimize the first 5-6 minutes of a patient interview to reach a diagnosis efficiently while ensuring "do-not-miss" conditions are addressed.
 
-Contextual Awareness:
-Geography: Rural West Bengal. Consider local endemicity (e.g., Scrub Typhus, Malaria, Japanese Encephalitis, Visceral Leishmaniasis, etc.).
-Temporality: Always check the current month and year. Adjust differentials based on seasonal peaks (e.g., pre-monsoon, monsoon, winter).
-
-Constraints: The initial interview is capped at 6 minutes. You have one follow-up opportunity for clarifying questions.
-
-STG-Integration Protocol (Mandatory):
-Mandatory Search: For every presenting complaint, you must first identify the relevant Standard Treatment Guidelines (STGs) from the Government of India (GoI), National Health Mission (NHM), or WHO (e.g., "NHM STG for Neonatal Sepsis", "Anemia Mukt Bharat", or "ICMR Diabetes Guidelines").
-Calibration: Use STGs to define "Must-Ask" questions and physiological thresholds (e.g., Respiratory Rate limits, BP cut-offs).
-Preventative Check: For ANC or pediatric visits, cross-reference the National Immunization Schedule and mandatory supplementation protocols (e.g., IFA, Vitamin A, Albendazole).
-
-Response Format: Generate a comprehensive Proforma Interview Guide organized into these sections:
-1. HPI: The Core Narrative
-Use SOCRATES for pain or OPQRST for functional complaints.
-Frame as patient-centered questions exploring illness trajectory
-2. Expanded ROS & Red Flags (STG-Informed)
-List "Must-Ask" questions for the specific system involved.
-Highlight 3-5 "Stop-Sign" Symptoms requiring immediate referral based on STG danger signs (e.g., Inability to feed, convulsions, or severe epigastric pain).
-In the Expanded ROS section, always include broad, systemic questions (Weight loss, Fever, Fatigue, Appetite, etc) regardless of the chief complaint to screen for undiagnosed chronic conditions such as infections, cancer, endocrine, rheumatologic diseases, anemia, cardiopulmonary symptoms etc. Things that are common in the age group specified.
-3. Social & Environmental factors (as relevant to the presenting complaints.)
-Water/Sanitation: Drinking source (Tube well vs. Pond), open defecation, and monsoon flooding.
-Occupational/Zoonotic: Rice paddy work (Lepto), livestock exposure, or stagnant water.
-Nutritional: Dietary diversity (Iron/Protein), Pica (clay/mud eating), and cooking fuel (biomass smoke).
-Tobacco and alcohol use
-sexual history, only if relevant to the presenting complaint.
-4. History & "Rural Pharmacy" Check
-GPLA & Obstetric History: (If applicable) Gravida, Para, Living, Abortion, and birth interval.
-TB/Malaria/HIV Screen: Previous incomplete treatment courses.
-The "Quack" Inquiry: Specific questions about "loose" pills, local herbal remedies, or "gas" medicine from non-medical shops.
-5. High-Yield Physical Exam & Vitals
-Vitals: Include Shock Index (HR/SBP) or Capillary Refill Time -- only if relevant.
-Maneuvers: 3-5 signs (e.g., Bitot's spots, Splenomegaly, Basal Crepitations, or checking for Pedal Edema)--whatever is relevant.
-
-Operational Instructions:
-Tone: Authentic, supportive, clinical, and peer-like.
-Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
-Default Logic: For vague complaints, default to high-mortality local etiologies (e.g., Sepsis, Eclampsia, Heat Stroke) until ruled out by STG criteria.
-For all symptoms, include Bengali colloquial terms in Bengali script (e.g., instead of just 'breathlessness,' use the Bengali term). Don't include English transliteration.
-
-6. Differential Calibration Table (Mandatory)
-Every response MUST conclude with a "Differential Calibration" table.
-- Columns: | Potential Diagnosis | Key Indicator | STG Action |
-- Content: Include at least 3-4 differentials ranging from common local presentations to high-mortality "do-not-miss" conditions.
-- STG Action: Must specify the immediate clinical step (e.g., specific antibiotic, dosage, or urgent referral criteria) as per NHM/GoI guidelines.`;
-
-async function generateExtractedProforma({audioPath, mimeType, patientId}) {
+async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
     }
 
-    const audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
+    const audioBase64 = fs.readFileSync(audioPath, { encoding: 'base64' });
     const extractionPrompt = `${EXTRACTION_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
 
     const modelName = await resolveModelName();
@@ -655,8 +714,8 @@ async function generateExtractedProforma({audioPath, mimeType, patientId}) {
         {
           role: 'user',
           parts: [
-            {text: extractionPrompt},
-            {inlineData: {mimeType, data: audioBase64}},
+            { text: extractionPrompt },
+            { inlineData: { mimeType, data: audioBase64 } },
           ],
         },
       ],
@@ -709,7 +768,7 @@ async function generateExtractedProforma({audioPath, mimeType, patientId}) {
 
     const proformaEndpoint = `${GEMINI_API_BASE_URL}/${cachedModelName || modelName}:generateContent?key=${GEMINI_API_KEY}`;
     const proformaBody = {
-      contents: [{role: 'user', parts: [{text: proformaPrompt}]}],
+      contents: [{ role: 'user', parts: [{ text: proformaPrompt }] }],
     };
 
     let proformaResponse = await fetchWithRetry(proformaEndpoint, proformaBody);
@@ -732,7 +791,7 @@ async function generateExtractedProforma({audioPath, mimeType, patientId}) {
   });
 }
 
-async function generateDiagnosisFromAudio({audioPaths, mimeTypes, patientId, patientHistory}) {
+async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, patientHistory }) {
   const paths = Array.isArray(audioPaths) ? audioPaths : [audioPaths];
   const types = Array.isArray(mimeTypes) ? mimeTypes : [mimeTypes];
 
@@ -741,17 +800,17 @@ async function generateDiagnosisFromAudio({audioPaths, mimeTypes, patientId, pat
       throw new Error('GEMINI_API_KEY is not set');
     }
 
-    const prompt = `${DIAGNOSIS_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n`;
+    const prompt = `${DIAGNOSIS_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n${REASONING_PROMPT_SUFFIX}`;
 
-    const parts = [{text: prompt}];
+    const parts = [{ text: prompt }];
 
     if (patientHistory) {
-      parts.push({text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n`});
+      parts.push({ text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n` });
     }
 
     for (let i = 0; i < paths.length; i++) {
-      const audioBase64 = fs.readFileSync(paths[i], {encoding: 'base64'});
-      parts.push({inlineData: {mimeType: types[i] || 'audio/mp4', data: audioBase64}});
+      const audioBase64 = fs.readFileSync(paths[i], { encoding: 'base64' });
+      parts.push({ inlineData: { mimeType: types[i] || 'audio/mp4', data: audioBase64 } });
     }
 
     const body = {
@@ -801,17 +860,18 @@ async function generateDiagnosisFromAudio({audioPaths, mimeTypes, patientId, pat
     }
 
     const data = await response.json();
-    const text =
+    const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
         .filter(Boolean)
         .join('\n') || '';
 
-    return text.trim();
+    const parsed = parseReasoningFromResponse(rawText);
+    return { text: parsed.text, reasoning: parsed.reasoning, modelUsed: modelName };
   });
 }
 
-async function generatePrescription({diagnosisText, answerAudioPath, answerMimeType, patientId, patientHistory}) {
+async function generatePrescription({ diagnosisText, answerAudioPath, answerMimeType, patientId, patientHistory }) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
@@ -828,19 +888,19 @@ ${diagnosisText}
 
 Patient ID: ${patientId || 'Unknown'}
 
-The attached audio contains the nurse's verbal answers to the clarifying questions from the 2Diagnosis stage. Based on the diagnosis assessment and the nurse's audio answers, provide the final management plan.`;
+The attached audio contains the nurse's verbal answers to the clarifying questions from the 2Diagnosis stage. Based on the diagnosis assessment and the nurse's audio answers, provide the final management plan.${REASONING_PROMPT_SUFFIX}`;
 
-    const answerBase64 = fs.readFileSync(answerAudioPath, {encoding: 'base64'});
+    const answerBase64 = fs.readFileSync(answerAudioPath, { encoding: 'base64' });
 
     const parts = [
-      {text: combinedPrompt},
+      { text: combinedPrompt },
     ];
 
     if (patientHistory) {
-      parts.push({text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n`});
+      parts.push({ text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n` });
     }
 
-    parts.push({inlineData: {mimeType: answerMimeType || 'audio/mp4', data: answerBase64}});
+    parts.push({ inlineData: { mimeType: answerMimeType || 'audio/mp4', data: answerBase64 } });
 
     const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
     const body = {
@@ -883,16 +943,17 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
     }
 
     const data = await response.json();
-    const text =
+    const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
         .filter(Boolean)
         .join('\n') || '';
-    return text.trim();
+    const parsed = parseReasoningFromResponse(rawText);
+    return { text: parsed.text, reasoning: parsed.reasoning, modelUsed: resolvedModel };
   });
 }
 
-async function generateProformaResponse({promptText}) {
+async function generateProformaResponse({ promptText }) {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not set');
   }
@@ -903,7 +964,7 @@ async function generateProformaResponse({promptText}) {
 
   const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
   const body = {
-    contents: [{role: 'user', parts: [{text: promptText}]}],
+    contents: [{ role: 'user', parts: [{ text: promptText }] }],
   };
 
   let response = await fetchWithRetry(endpoint, body);
@@ -954,7 +1015,7 @@ module.exports = {
   generatePrescription,
   generateExtractedProforma,
   getBenchmarkPrompt: () => GEMINI_PROMPT,
-  generateBenchmarkAudio: async ({audioPath, audioUrl, mimeType, patientId, modelName, promptText}) => {
+  generateBenchmarkAudio: async ({ audioPath, audioUrl, mimeType, patientId, modelName, promptText }) => {
     return runGeminiThrottled(async () => {
       if (!GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY is not set');
@@ -966,7 +1027,7 @@ module.exports = {
 
       let audioBase64 = null;
       if (audioPath) {
-        audioBase64 = fs.readFileSync(audioPath, {encoding: 'base64'});
+        audioBase64 = fs.readFileSync(audioPath, { encoding: 'base64' });
       } else if (audioUrl) {
         const response = await fetch(audioUrl);
         if (!response.ok) {
@@ -987,7 +1048,7 @@ module.exports = {
           {
             role: 'user',
             parts: [
-              {text: promptWithPatient},
+              { text: promptWithPatient },
               {
                 inlineData: {
                   mimeType,

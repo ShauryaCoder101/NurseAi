@@ -50,8 +50,16 @@ const TranscriptItem = React.memo(({item, isExpanded, onToggle}) => {
           <Ionicons name="calendar-outline" size={14} color="#94A3B8" />
           <Text style={styles.visitDate}>{formatDate(item.createdAt)}</Text>
         </View>
-        <View style={[styles.sourceBadge, {backgroundColor: colors.bg}]}>
-          <Text style={[styles.sourceBadgeText, {color: colors.text}]}>{label}</Text>
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+          {item.verificationStatus === 'verified' && (
+            <View style={styles.verifiedBadge}>
+              <Ionicons name="shield-checkmark" size={11} color="#059669" />
+              <Text style={styles.verifiedBadgeText}>Verified</Text>
+            </View>
+          )}
+          <View style={[styles.sourceBadge, {backgroundColor: colors.bg}]}>
+            <Text style={[styles.sourceBadgeText, {color: colors.text}]}>{label}</Text>
+          </View>
         </View>
       </View>
       <Text style={styles.visitContent} numberOfLines={isExpanded ? undefined : 4}>
@@ -494,6 +502,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    gap: 3,
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
   },
 });
 

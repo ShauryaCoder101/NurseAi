@@ -1,6 +1,9 @@
 # OSX
 .DS_Store
 
+# Root-level PDFs (proformas, scans, docs)
+*.pdf
+
 # Xcode
 build/
 *.pbxuser
@@ -53,6 +56,14 @@ fastlane/test_output
 *.tmp
 backend.zip
 backend-eb.zip
+backend/backend-deploy.zip
+
+# Test output files
+backend/test_output.html
+backend/test_patient.html
+
+# Patient records (generated at runtime)
+backend/patient_records/
 
 # Environment variables
 .env
