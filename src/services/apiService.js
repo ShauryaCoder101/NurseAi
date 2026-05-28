@@ -166,11 +166,11 @@ export const apiCall = async (endpoint, options = {}) => {
         
         if (!isAuthEndpoint && token) {
           // This is an authenticated endpoint that returned 401 - token expired
-        await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
-        throw new Error('Session expired. Please login again.');
-      }
+          await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+          return { success: false, error: 'Session expired. Please login again.' };
+        }
         // For auth endpoints, 401 is a valid response (wrong credentials, etc.)
-        // Just return the error message from the backend
+        // Fall through to parse and return the backend error message
       }
       
       const errorText = await response.text();
@@ -183,7 +183,8 @@ export const apiCall = async (endpoint, options = {}) => {
       }
       
       console.error(`❌ API Error ${response.status}:`, errorMessage);
-      throw new Error(errorMessage);
+      // Return the actual backend error message directly instead of throwing
+      return { success: false, error: errorMessage };
     }
 
     const data = await response.json();
@@ -191,14 +192,14 @@ export const apiCall = async (endpoint, options = {}) => {
     return { success: true, data };
   } catch (error) {
     console.error(`❌ API Error for ${endpoint}:`, error.message);
-    // Provide more helpful error messages
+    // Only truly unexpected errors (network failures, crashes) reach here
     if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
       return { 
         success: false, 
-        error: `Cannot connect to backend. Make sure backend is running on ${API_BASE_URL.replace('/api', '')}` 
+        error: 'No internet connection. Please check your Wi-Fi or mobile data and try again.' 
       };
     }
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Something went wrong. Please try again in a moment.' };
   }
 };
 
@@ -465,11 +466,16 @@ export const apiService = {
         headers.Authorization = `Bearer ${token}`;
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for Gemini processing
+
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -479,7 +485,13 @@ export const apiService = {
       return {success: true, data};
     } catch (error) {
       console.error('Audio upload error:', error);
-      return {success: false, error: error.message};
+      if (error.name === 'AbortError') {
+        return {success: false, error: 'Upload timed out. The AI is processing — please check your history in a moment.'};
+      }
+      if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+        return {success: false, error: 'No internet connection. Please check your Wi-Fi or mobile data and try again.'};
+      }
+      return {success: false, error: 'Something went wrong. Please try again in a moment.'};
     }
   },
 
@@ -508,11 +520,16 @@ export const apiService = {
         headers.Authorization = `Bearer ${token}`;
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for dual Gemini calls
+
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -522,7 +539,13 @@ export const apiService = {
       return {success: true, data};
     } catch (error) {
       console.error('Extract proforma error:', error);
-      return {success: false, error: error.message};
+      if (error.name === 'AbortError') {
+        return {success: false, error: 'Proforma extraction timed out. The AI is taking longer than usual — please try again.'};
+      }
+      if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+        return {success: false, error: 'No internet connection. Please check your Wi-Fi or mobile data and try again.'};
+      }
+      return {success: false, error: 'Something went wrong. Please try again in a moment.'};
     }
   },
 
@@ -562,11 +585,16 @@ export const apiService = {
         headers.Authorization = `Bearer ${token}`;
       }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for prescription generation
+
       const response = await fetch(url, {
         method: 'POST',
         headers,
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -576,7 +604,13 @@ export const apiService = {
       return {success: true, data};
     } catch (error) {
       console.error('Submit clarifying answers error:', error);
-      return {success: false, error: error.message};
+      if (error.name === 'AbortError') {
+        return {success: false, error: 'Prescription generation timed out. Please try again.'};
+      }
+      if (error.message?.includes('Network request failed') || error.message?.includes('Failed to fetch')) {
+        return {success: false, error: 'No internet connection. Please check your Wi-Fi or mobile data and try again.'};
+      }
+      return {success: false, error: 'Something went wrong. Please try again in a moment.'};
     }
   },
 

@@ -42,12 +42,15 @@ export const authService = {
       
       return result;
     } catch (error) {
-      // If error occurs, use mock mode
-      console.log('🔧 Mock Mode: Registration (fallback)');
-      return {
-        success: true,
-        message: 'Registration successful. OTP sent to your email.',
-      };
+      if (MOCK_MODE) {
+        console.log('🔧 Mock Mode: Registration (fallback)');
+        return {
+          success: true,
+          message: 'Registration successful. OTP sent to your email.',
+        };
+      }
+      console.error('Registration error:', error);
+      return {success: false, error: error.message || 'Network error. Please try again.'};
     }
   },
 
@@ -147,12 +150,15 @@ export const authService = {
       
       return result;
     } catch (error) {
-      // If error occurs, use mock mode
-      console.log('🔧 Mock Mode: OTP resent (fallback). Use OTP: ' + TEST_OTP);
-      return {
-        success: true,
-        message: 'OTP has been resent to your email. (Mock Mode: Use ' + TEST_OTP + ')',
-      };
+      if (MOCK_MODE) {
+        console.log('🔧 Mock Mode: OTP resent (fallback). Use OTP: ' + TEST_OTP);
+        return {
+          success: true,
+          message: 'OTP has been resent to your email. (Mock Mode: Use ' + TEST_OTP + ')',
+        };
+      }
+      console.error('Resend OTP error:', error);
+      return {success: false, error: error.message || 'Network error. Please try again.'};
     }
   },
 
@@ -173,11 +179,15 @@ export const authService = {
       }
       return result;
     } catch (error) {
-      console.log('🔧 Mock Mode: Password reset OTP (fallback). Use OTP: ' + TEST_OTP);
-      return {
-        success: true,
-        message: 'Password reset OTP sent. (Mock Mode: Use ' + TEST_OTP + ')',
-      };
+      if (MOCK_MODE) {
+        console.log('🔧 Mock Mode: Password reset OTP (fallback). Use OTP: ' + TEST_OTP);
+        return {
+          success: true,
+          message: 'Password reset OTP sent. (Mock Mode: Use ' + TEST_OTP + ')',
+        };
+      }
+      console.error('Password reset request error:', error);
+      return {success: false, error: error.message || 'Network error. Please try again.'};
     }
   },
 
