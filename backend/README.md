@@ -36,7 +36,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` file with your PostgreSQL configuration:
+Edit `.env` file with your configuration:
 ```env
 DB_HOST=localhost
 DB_PORT=5432
@@ -44,6 +44,10 @@ DB_NAME=nurseai
 DB_USER=postgres
 DB_PASSWORD=your_postgres_password
 JWT_SECRET=your-secret-key
+GEMINI_API_KEY=your-gemini-key
+SUPABASE_URL=your-supabase-url
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-key
+SUPABASE_STORAGE_BUCKET=your-bucket-name
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-app-password
 ```
