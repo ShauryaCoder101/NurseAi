@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Default to local backend in dev; allow override via EXPO_PUBLIC_API_URL.
 const DEV_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  'http://172.20.10.2:3000/api';
+  'http://192.168.86.215:3000/api';
 
 const PROD_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -213,6 +213,7 @@ const unwrapApiData = (result) => {
 
 export const apiService = {
   getConsentStatus: async () => {
+    if (MOCK_MODE) return {success: true, data: {has_consented: false}};
     const result = await apiCall('/auth/consent');
     if (result.success) {
       const payload = unwrapApiData(result);
@@ -222,6 +223,7 @@ export const apiService = {
   },
 
   acceptConsent: async () => {
+    if (MOCK_MODE) return {success: true, data: {has_consented: true}};
     const result = await apiCall('/auth/consent', {
       method: 'POST',
       body: JSON.stringify({accepted: true}),

@@ -454,9 +454,11 @@ async function finalizePrescription(req, res) {
       patientHistory,
     });
 
-    const prescriptionText = prescriptionResult.text || prescriptionResult;
-    const prescriptionReasoning = prescriptionResult.reasoning || null;
-    const prescriptionModel = prescriptionResult.modelUsed || null;
+    const prescriptionText = typeof prescriptionResult === 'string'
+      ? prescriptionResult
+      : (prescriptionResult?.text ?? '');
+    const prescriptionReasoning = prescriptionResult?.reasoning || null;
+    const prescriptionModel = prescriptionResult?.modelUsed || null;
 
     if (!prescriptionText || !prescriptionText.trim()) {
       return res.status(502).json({

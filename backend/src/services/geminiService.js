@@ -14,6 +14,7 @@ const GEMINI_LOG_ENABLED =
   process.env.NODE_ENV !== 'production';
 const GEMINI_LOG_INCLUDE_RAW = process.env.GEMINI_LOG_INCLUDE_RAW === 'true';
 const GEMINI_MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS || 2000);
+const GENERATION_CONFIG = { temperature: 0 };
 const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 3);
 const GEMINI_BACKOFF_MS = Number(process.env.GEMINI_BACKOFF_MS || 2000);
 const GEMINI_MAX_BACKOFF_MS = Number(process.env.GEMINI_MAX_BACKOFF_MS || 15000);
@@ -23,6 +24,19 @@ let geminiQueue = Promise.resolve();
 let lastGeminiRequestAt = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function logGeminiCandidate(source, data) {
+  const candidate = data?.candidates?.[0];
+  console.log(
+    `[Gemini:${source}] finishReason=${candidate?.finishReason ?? 'none'} ` +
+    `parts=${candidate?.content?.parts?.length ?? 0} ` +
+    `promptTokens=${data?.usageMetadata?.promptTokenCount ?? '?'} ` +
+    `outputTokens=${data?.usageMetadata?.candidatesTokenCount ?? '?'}`
+  );
+  if (!candidate?.content?.parts?.length) {
+    console.log(`[Gemini:${source}] empty/blocked response:`, JSON.stringify(data, null, 2));
+  }
+}
 
 const REASONING_PROMPT_SUFFIX = `
 
@@ -277,6 +291,7 @@ async function generateGeminiSuggestion({ audioPath, mimeType, patientId }) {
           ],
         },
       ],
+      generationConfig: GENERATION_CONFIG,
     };
 
     if (typeof fetch !== 'function') {
@@ -321,6 +336,7 @@ async function generateGeminiSuggestion({ audioPath, mimeType, patientId }) {
     }
 
     const data = await response.json();
+    logGeminiCandidate('generateGeminiSuggestion', data);
     const text =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -439,6 +455,7 @@ async function generateGeminiFollowup({ previousResponse, followupText, patientI
     }
 
     const data = await response.json();
+    logGeminiCandidate('generateGeminiFollowup', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -490,6 +507,7 @@ const generateBenchmarkResponse = async ({ modelName, promptText }) => {
           parts: [{ text: promptText }],
         },
       ],
+      generationConfig: GENERATION_CONFIG,
     };
 
     let response = await fetchWithRetry(endpoint, body);
@@ -522,6 +540,7 @@ const generateBenchmarkResponse = async ({ modelName, promptText }) => {
     }
 
     const data = await response.json();
+    logGeminiCandidate('generateBenchmarkResponse', data);
     const text =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -719,6 +738,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
           ],
         },
       ],
+      generationConfig: GENERATION_CONFIG,
     };
 
     const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
@@ -769,6 +789,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
     const proformaEndpoint = `${GEMINI_API_BASE_URL}/${cachedModelName || modelName}:generateContent?key=${GEMINI_API_KEY}`;
     const proformaBody = {
       contents: [{ role: 'user', parts: [{ text: proformaPrompt }] }],
+      generationConfig: GENERATION_CONFIG,
     };
 
     let proformaResponse = await fetchWithRetry(proformaEndpoint, proformaBody);
@@ -820,6 +841,7 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, pa
           parts,
         },
       ],
+      generationConfig: GENERATION_CONFIG,
     };
 
     const modelName = await resolveModelName();
@@ -860,6 +882,7 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, pa
     }
 
     const data = await response.json();
+    logGeminiCandidate('generateDiagnosisFromAudio', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -910,6 +933,7 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
           parts,
         },
       ],
+      generationConfig: GENERATION_CONFIG,
     };
 
     let response = await fetchWithRetry(endpoint, body);
@@ -943,6 +967,7 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
     }
 
     const data = await response.json();
+    logGeminiCandidate('generatePrescription', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -965,6 +990,7 @@ async function generateProformaResponse({ promptText }) {
   const endpoint = `${GEMINI_API_BASE_URL}/${resolvedModel}:generateContent?key=${GEMINI_API_KEY}`;
   const body = {
     contents: [{ role: 'user', parts: [{ text: promptText }] }],
+    generationConfig: GENERATION_CONFIG,
   };
 
   let response = await fetchWithRetry(endpoint, body);
@@ -998,6 +1024,7 @@ async function generateProformaResponse({ promptText }) {
   }
 
   const data = await response.json();
+  logGeminiCandidate('generateProformaResponse', data);
   const text =
     data?.candidates?.[0]?.content?.parts
       ?.map((part) => part.text)
@@ -1058,6 +1085,7 @@ module.exports = {
             ],
           },
         ],
+        generationConfig: GENERATION_CONFIG,
       };
 
       let response = await fetchWithRetry(
@@ -1096,6 +1124,7 @@ module.exports = {
       }
 
       const data = await response.json();
+      logGeminiCandidate('generateBenchmarkAudio', data);
       const text =
         data?.candidates?.[0]?.content?.parts
           ?.map((part) => part.text)
