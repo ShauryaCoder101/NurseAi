@@ -63,6 +63,8 @@ The backend leverages **6 specialized Gemini prompts** to guide the AI's respons
 - `PROFORMA_GEM_PROMPT`: Acts as "Proforma Gem", optimizing the initial 5-6 minutes of a patient interview to efficiently reach a diagnosis while addressing "do-not-miss" conditions, with a focus on local context and Standard Treatment Guidelines (STGs).
 - `EXTRACTION_PROMPT`: Designed for strict extraction of specific clinical and demographic data from patient-nurse transcripts without narrative summaries.
 
+All Gemini calls use **temperature = 0** for fully deterministic, reproducible outputs — critical for clinical safety.
+
 **End-to-End App Stages (9 Stages)**
 The NurseAI application workflow is structured into 9 distinct stages, combining user interactions with AI processing and external integrations:
 
@@ -72,11 +74,11 @@ The NurseAI application workflow is structured into 9 distinct stages, combining
 3. **Patient Consultation Recording**: Capturing audio of patient interactions within the mobile app.
 
 **Core AI Integration Stages (after recording):**
-4. **AI Diagnosis Generation**: The recorded audio is processed by Gemini, generating an initial diagnosis. This is the **primary Gemini API call** in a single end-to-end session.
+4. **AI Diagnosis Generation**: The recorded audio is processed by Gemini, generating an initial diagnosis. This is the **primary Gemini API call** in a single end-to-end session. The Supabase audio upload runs concurrently (non-blocking) to reduce latency.
 5. **Transcript & Patient Record Management**: Nurses review, edit, and save AI-generated transcripts and manage patient records.
 6. **AI-Powered Prescription**: Generating tailored medication plans based on diagnosis and clinical data.
 7. **AI-Powered Proforma Extraction**: Extracting structured clinical and demographic data into standardized forms.
-8. **AI-Powered Follow-up Questions/Suggestions**: Generating concise answers for follow-up questions based on the patient's longitudinal history.
+8. **AI-Powered Follow-up Questions/Suggestions**: Generating concise answers for follow-up questions.
 
 **External Interfaces:**
 9. **Doctor Verification & System Benchmarking**: Separate portals for doctors to verify AI outputs and for monitoring system performance and metrics.
@@ -122,18 +124,21 @@ The NurseAI application workflow is structured into 9 distinct stages, combining
 
 The backend requires several environment variables to function correctly. Create a `.env` file in the `backend/` directory:
 
-| Variable | Description |
-|----------|-------------|
-| `DB_HOST` | PostgreSQL Host |
-| `DB_NAME` | Database Name |
-| `DB_USER` | PostgreSQL User |
-| `DB_PASSWORD` | PostgreSQL Password |
-| `JWT_SECRET` | Secret for JWT signing |
-| `GEMINI_API_KEY` | Google Gemini API Key |
-| `SUPABASE_URL` | Supabase Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key |
-| `EMAIL_USER` | SMTP Email address for OTP |
-| `EMAIL_PASS` | SMTP App password |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Full Supabase PostgreSQL connection string |
+| `JWT_SECRET` | Yes | Secret for JWT signing (use a long random string) |
+| `JWT_EXPIRES_IN` | No | Token expiry (default: `7d`) |
+| `GEMINI_API_KEY` | Yes | Google Gemini API Key |
+| `GEMINI_MODEL` | No | Gemini model name (default: `gemini-3.5-flash`) |
+| `SUPABASE_URL` | Yes | Supabase Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase Service Role Key |
+| `SUPABASE_STORAGE_BUCKET` | No | Storage bucket name (default: `audio`) |
+| `EMAIL_HOST` | Yes | SMTP host (e.g. `smtp.gmail.com`) |
+| `EMAIL_PORT` | No | SMTP port (default: `587`) |
+| `EMAIL_USER` | Yes | SMTP email address for OTP |
+| `EMAIL_PASS` | Yes | SMTP app password |
+| `OTP_EXPIRY_MINUTES` | No | OTP validity window (default: `10`) |
 
 ---
 

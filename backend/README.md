@@ -1,104 +1,110 @@
 # NurseAI Backend API
 
-Node.js/Express backend server for the NurseAI mobile application with PostgreSQL database.
+Node.js/Express backend for the NurseAI mobile application.
 
-## Features
+## Tech Stack
 
-- User authentication (Register, Login, OTP verification)
-- JWT token-based authentication
-- PostgreSQL database
-- Email OTP service
-- Dashboard API endpoints
-- Transcript management
-- Patient tasks management
-
-## Prerequisites
-
-- Node.js (v18 or higher)
-- PostgreSQL (v12 or higher)
+- Node.js & Express
+- PostgreSQL via Supabase (cloud-hosted, no local DB required)
+- Supabase Storage (audio files)
+- Google Gemini AI (transcription and clinical decision support)
+- Nodemailer / Gmail SMTP (OTP emails)
+- JWT (authentication)
 
 ## Setup
 
-1. **Install PostgreSQL:**
-   - Install PostgreSQL on your system
-   - Create a database named `nurseai`:
-   ```sql
-   CREATE DATABASE nurseai;
+1. **Install dependencies:**
+   ```bash
+   npm install
    ```
 
-2. **Install dependencies:**
-```bash
-npm install
-```
+2. **Create `backend/.env`** with the following variables:
+   ```env
+   NODE_ENV=development
+   PORT=3000
 
-3. **Configure environment variables:**
-```bash
-cp .env.example .env
-```
+   # Supabase PostgreSQL
+   DATABASE_URL=postgresql://postgres.<project>:<password>@<host>:5432/postgres
 
-Edit `.env` file with your configuration:
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=nurseai
-DB_USER=postgres
-DB_PASSWORD=your_postgres_password
-JWT_SECRET=your-secret-key
-GEMINI_API_KEY=your-gemini-key
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-key
-SUPABASE_STORAGE_BUCKET=your-bucket-name
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
-```
+   # Supabase Storage
+   SUPABASE_URL=https://<project>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+   SUPABASE_STORAGE_BUCKET=audio
 
-4. **Start the server:**
-```bash
-# Development mode (with auto-reload)
-npm run dev
+   # JWT
+   JWT_SECRET=<long-random-string>
+   JWT_EXPIRES_IN=7d
 
-# Production mode
-npm start
-```
+   # OTP
+   OTP_EXPIRY_MINUTES=10
 
-The database tables will be automatically created on first run.
+   # Email (Gmail SMTP with App Password)
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_USER=you@gmail.com
+   EMAIL_PASS=<app-password>
+   EMAIL_FROM=NurseAI <noreply@nurseai.com>
+
+   # Gemini AI
+   GEMINI_API_KEY=<your-key>
+   GEMINI_MODEL=gemini-3.5-flash
+   GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+   ```
+
+3. **Start the server:**
+   ```bash
+   npm start
+   ```
+
+   Database tables are created automatically on first run.
 
 ## API Endpoints
 
 ### Authentication
-
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/verify-otp` - Verify OTP and complete registration
-- `POST /api/auth/resend-otp` - Resend OTP
-- `POST /api/auth/login` - Login user
+- `POST /api/auth/register` — Register new user (sends OTP)
+- `POST /api/auth/verify-otp` — Verify OTP and complete registration
+- `POST /api/auth/resend-otp` — Resend OTP
+- `POST /api/auth/login` — Login
+- `POST /api/auth/request-password-reset` — Request password reset OTP
+- `POST /api/auth/reset-password` — Reset password with OTP
 
 ### Dashboard
+- `GET /api/dashboard/summary` — Pending/done task counts
+- `GET /api/dashboard/patient-tasks` — Patient tasks sorted by emergency level
 
-- `GET /api/dashboard/summary` - Get dashboard summary (pending/done counts)
-- `GET /api/dashboard/patient-tasks` - Get patient tasks (sorted by emergency)
+### Audio & AI
+- `POST /api/audio/upload` — Upload audio, trigger Gemini diagnosis (non-blocking Supabase upload)
+- `POST /api/audio/finalize-prescription` — Submit follow-up audio, generate prescription
+- `POST /api/audio/extract-proforma` — Extract structured proforma from audio
+- `GET /api/audio/records` — List audio records
 
 ### Transcripts
+- `GET /api/transcripts` — List all transcripts
+- `GET /api/transcripts/:id` — Get single transcript
+- `POST /api/transcripts` — Save transcript
 
-- `GET /api/transcripts` - Get all transcripts
-- `GET /api/transcripts/:id` - Get single transcript
-- `POST /api/transcripts` - Save new transcript
+## AI Configuration
 
-## Database Schema
+All Gemini calls use `temperature: 0` for deterministic outputs. Every response logs:
+```
+[Gemini:generateDiagnosisFromAudio] finishReason=STOP parts=3 promptTokens=1204 outputTokens=412
+```
+If a response is empty or blocked, the full raw candidate is dumped to console.
 
-The following tables are automatically created:
+Model and generation settings are controlled via `.env`:
+- `GEMINI_MODEL` — primary model
+- `GEMINI_FALLBACK_MODEL` — fallback if primary returns 404
+- `GEMINI_LOG_ENABLED` — file logging (auto-enabled outside production)
+- `GEMINI_LOG_INCLUDE_RAW` — include full raw response in log file
 
-- **users** - User accounts
-- **otps** - OTP verification codes
-- **transcripts** - Medical transcripts
-- **patient_tasks** - Patient task management
+## Performance Notes
+
+- **Supabase upload is non-blocking**: audio upload runs in the background while the Gemini diagnosis call starts immediately, reducing user-perceived latency.
+- **No patient history fetched** for diagnosis or prescription (one-off episode model). `fetchPatientHistory` is still exported for future multi-visit support.
 
 ## Development Notes
 
-- In development mode, if email is not configured, OTPs are logged to console
-- JWT tokens expire in 7 days (configurable)
-- OTP expires in 10 minutes (configurable)
-- Uses connection pooling for better performance
-
-## Environment Variables
-
-See `.env.example` for all available configuration options.
+- JWT tokens expire in 7 days (configurable via `JWT_EXPIRES_IN`)
+- OTP expires in 10 minutes (configurable via `OTP_EXPIRY_MINUTES`)
+- Uses PostgreSQL connection pooling
+- Gemini logs written to `backend/logs/gemini.log`

@@ -125,28 +125,19 @@ async function uploadAudio(req, res) {
     let fileUrl = null;
     let storagePath = null;
     if (isStorageConfigured()) {
-      try {
-        const uploadResult = await uploadAudioFile({
-          filePath,
-          fileName,
-          recordId: result.lastID,
-          mimeType,
-        });
-        if (uploadResult) {
-          fileUrl = uploadResult.publicUrl;
-          storagePath = uploadResult.storagePath;
-          await dbHelpers.run(
-            'UPDATE audio_records SET file_url = $1, storage_path = $2 WHERE id = $3',
-            [fileUrl, storagePath, result.lastID]
-          );
-        }
-      } catch (uploadError) {
-        console.error('Supabase audio upload failed:', uploadError);
-      }
+      // Fire-and-forget: upload runs in background while Gemini call proceeds immediately
+      const recordId = result.lastID;
+      uploadAudioFile({ filePath, fileName, recordId, mimeType })
+        .then(uploadResult => {
+          if (uploadResult) {
+            return dbHelpers.run(
+              'UPDATE audio_records SET file_url = $1, storage_path = $2 WHERE id = $3',
+              [uploadResult.publicUrl, uploadResult.storagePath, recordId]
+            );
+          }
+        })
+        .catch(uploadError => console.error('Supabase audio upload failed:', uploadError));
     } else {
-      // Fallback for local storage if Supabase isn't configured
-      // Assuming server runs on the same domain/port, serve via the /uploads static route.
-      // E.g. /uploads/audio/my_file.mp4
       fileUrl = `/uploads/audio/${encodeURIComponent(fileName)}`;
       await dbHelpers.run(
         'UPDATE audio_records SET file_url = $1 WHERE id = $2',
@@ -169,12 +160,10 @@ async function uploadAudio(req, res) {
           audioPaths.push(audio2File.path.replace(/\\/g, '/'));
           audioMimeTypes.push(audio2File.mimetype || 'audio/mp4');
         }
-        const patientHistory = await fetchPatientHistory(patientId);
         const diagnosisResult = await generateDiagnosisFromAudio({
           audioPaths,
           mimeTypes: audioMimeTypes,
           patientId,
-          patientHistory,
         });
         diagnosisText = diagnosisResult.text || diagnosisResult;
         const diagnosisReasoning = diagnosisResult.reasoning || null;
@@ -445,13 +434,11 @@ async function finalizePrescription(req, res) {
       });
     }
 
-    const patientHistory = await fetchPatientHistory(audioRecord.patient_id);
     const prescriptionResult = await generatePrescription({
       diagnosisText: diagnosisTranscript.content,
       answerAudioPath,
       answerMimeType,
       patientId: audioRecord.patient_id,
-      patientHistory,
     });
 
     const prescriptionText = typeof prescriptionResult === 'string'

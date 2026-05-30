@@ -812,7 +812,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
   });
 }
 
-async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, patientHistory }) {
+async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId }) {
   const paths = Array.isArray(audioPaths) ? audioPaths : [audioPaths];
   const types = Array.isArray(mimeTypes) ? mimeTypes : [mimeTypes];
 
@@ -824,10 +824,6 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, pa
     const prompt = `${DIAGNOSIS_PROMPT}\n\nPatient ID: ${patientId || 'Unknown'}\n${REASONING_PROMPT_SUFFIX}`;
 
     const parts = [{ text: prompt }];
-
-    if (patientHistory) {
-      parts.push({ text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n` });
-    }
 
     for (let i = 0; i < paths.length; i++) {
       const audioBase64 = fs.readFileSync(paths[i], { encoding: 'base64' });
@@ -894,7 +890,7 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId, pa
   });
 }
 
-async function generatePrescription({ diagnosisText, answerAudioPath, answerMimeType, patientId, patientHistory }) {
+async function generatePrescription({ diagnosisText, answerAudioPath, answerMimeType, patientId }) {
   return runGeminiThrottled(async () => {
     if (!GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY is not set');
@@ -918,10 +914,6 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
     const parts = [
       { text: combinedPrompt },
     ];
-
-    if (patientHistory) {
-      parts.push({ text: `\n--- LONGITUDINAL PATIENT HISTORY ---\n${patientHistory}\n--- END PATIENT HISTORY ---\n` });
-    }
 
     parts.push({ inlineData: { mimeType: answerMimeType || 'audio/mp4', data: answerBase64 } });
 
