@@ -411,6 +411,35 @@ async function initializeDatabase() {
       )
     `);
 
+    // Gemini audit log — one row per LLM call, across all stages
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gemini_audit_log (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        stage VARCHAR(100) NOT NULL,
+        user_uid VARCHAR(16),
+        patient_id VARCHAR(255),
+        audio_record_id UUID,
+        transcript_id UUID,
+        model_used VARCHAR(100),
+        was_fallback_model BOOLEAN DEFAULT FALSE,
+        prompt_text TEXT,
+        prompt_hash VARCHAR(16),
+        prompt_token_count INT,
+        output_token_count INT,
+        latency_ms INT,
+        finish_reason VARCHAR(50),
+        safety_ratings JSONB,
+        raw_response JSONB,
+        reasoning_text TEXT,
+        final_output TEXT,
+        retry_count INT DEFAULT 0,
+        error_message TEXT,
+        clinician_action VARCHAR(20),
+        clinician_action_at TIMESTAMP
+      )
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
@@ -444,6 +473,18 @@ async function initializeDatabase() {
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_followup_log_patient_id ON followup_log(patient_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_gemini_audit_log_stage ON gemini_audit_log(stage)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_gemini_audit_log_patient_id ON gemini_audit_log(patient_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_gemini_audit_log_audio_record_id ON gemini_audit_log(audio_record_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_gemini_audit_log_created_at ON gemini_audit_log(created_at DESC)
     `);
 
     // Data migration: backfill file_url for existing local audio records

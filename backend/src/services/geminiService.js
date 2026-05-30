@@ -27,15 +27,29 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function logGeminiCandidate(source, data) {
   const candidate = data?.candidates?.[0];
+  const promptTokens = data?.usageMetadata?.promptTokenCount ?? null;
+  const outputTokens = data?.usageMetadata?.candidatesTokenCount ?? null;
+  const finishReason = candidate?.finishReason ?? null;
+  const safetyRatings = candidate?.safetyRatings ?? null;
+  const parts = candidate?.content?.parts ?? [];
+
   console.log(
-    `[Gemini:${source}] finishReason=${candidate?.finishReason ?? 'none'} ` +
-    `parts=${candidate?.content?.parts?.length ?? 0} ` +
-    `promptTokens=${data?.usageMetadata?.promptTokenCount ?? '?'} ` +
-    `outputTokens=${data?.usageMetadata?.candidatesTokenCount ?? '?'}`
+    `[Gemini:${source}] finishReason=${finishReason ?? 'none'} ` +
+    `parts=${parts.length} ` +
+    `promptTokens=${promptTokens ?? '?'} ` +
+    `outputTokens=${outputTokens ?? '?'}`
   );
-  if (!candidate?.content?.parts?.length) {
+  if (!parts.length) {
     console.log(`[Gemini:${source}] empty/blocked response:`, JSON.stringify(data, null, 2));
   }
+
+  return {
+    finishReason,
+    safetyRatings,
+    promptTokenCount: promptTokens,
+    outputTokenCount: outputTokens,
+    rawCandidate: candidate ?? null,
+  };
 }
 
 const REASONING_PROMPT_SUFFIX = `
@@ -423,6 +437,8 @@ async function generateGeminiFollowup({ previousResponse, followupText, patientI
     }
 
     const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    const fetchStart = Date.now();
+    let wasFallback = false;
     let response = await fetchWithRetry(endpoint, body);
 
     if (!response.ok) {
@@ -435,6 +451,7 @@ async function generateGeminiFollowup({ previousResponse, followupText, patientI
         if (fallback && fallback !== modelName) {
           console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
           cachedModelName = fallback;
+          wasFallback = true;
           response = await fetchWithRetry(
             `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
             body
@@ -454,8 +471,9 @@ async function generateGeminiFollowup({ previousResponse, followupText, patientI
       }
     }
 
+    const latencyMs = Date.now() - fetchStart;
     const data = await response.json();
-    logGeminiCandidate('generateGeminiFollowup', data);
+    const auditMeta = logGeminiCandidate('generateGeminiFollowup', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -485,7 +503,12 @@ async function generateGeminiFollowup({ previousResponse, followupText, patientI
       }
     }
 
-    return { text: transcriptText, reasoning: parsed.reasoning, modelUsed: modelName };
+    return {
+      text: transcriptText,
+      reasoning: parsed.reasoning,
+      modelUsed: wasFallback ? getFallbackModelName() : modelName,
+      _audit: { ...auditMeta, promptText: followupText, latencyMs, wasFallbackModel: wasFallback },
+    };
   });
 }
 
@@ -742,6 +765,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
     };
 
     const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    const extractStart = Date.now();
     let response = await fetchWithRetry(endpoint, extractBody);
 
     if (!response.ok) {
@@ -773,7 +797,9 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
       }
     }
 
+    const extractLatencyMs = Date.now() - extractStart;
     const extractData = await response.json();
+    const extractAuditMeta = logGeminiCandidate('generateExtractedProforma:extraction', extractData);
     const extractedText =
       extractData?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -792,6 +818,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
       generationConfig: GENERATION_CONFIG,
     };
 
+    const proformaStart = Date.now();
     let proformaResponse = await fetchWithRetry(proformaEndpoint, proformaBody);
     if (!proformaResponse.ok) {
       const errText = await proformaResponse.text();
@@ -801,14 +828,21 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
       throw new Error(`Gemini proforma API error: ${errText}`);
     }
 
+    const proformaLatencyMs = Date.now() - proformaStart;
     const proformaData = await proformaResponse.json();
+    const proformaAuditMeta = logGeminiCandidate('generateExtractedProforma:generation', proformaData);
     const proformaText =
       proformaData?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
         .filter(Boolean)
         .join('\n') || '';
 
-    return proformaText.trim();
+    return {
+      text: proformaText.trim(),
+      _auditExtraction: { ...extractAuditMeta, promptText: extractionPrompt, latencyMs: extractLatencyMs, wasFallbackModel: false },
+      _auditProforma: { ...proformaAuditMeta, promptText: proformaPrompt, latencyMs: proformaLatencyMs, wasFallbackModel: false },
+      modelUsed: cachedModelName || modelName,
+    };
   });
 }
 
@@ -846,6 +880,8 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId }) 
     }
 
     const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    const fetchStart = Date.now();
+    let wasFallback = false;
     let response = await fetchWithRetry(endpoint, body);
 
     if (!response.ok) {
@@ -858,6 +894,7 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId }) 
         if (fallback && fallback !== modelName) {
           console.log(`Primary model ${modelName} not found, trying fallback ${fallback}`);
           cachedModelName = fallback;
+          wasFallback = true;
           response = await fetchWithRetry(
             `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
             body
@@ -877,8 +914,9 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId }) 
       }
     }
 
+    const latencyMs = Date.now() - fetchStart;
     const data = await response.json();
-    logGeminiCandidate('generateDiagnosisFromAudio', data);
+    const auditMeta = logGeminiCandidate('generateDiagnosisFromAudio', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
@@ -886,7 +924,12 @@ async function generateDiagnosisFromAudio({ audioPaths, mimeTypes, patientId }) 
         .join('\n') || '';
 
     const parsed = parseReasoningFromResponse(rawText);
-    return { text: parsed.text, reasoning: parsed.reasoning, modelUsed: modelName };
+    return {
+      text: parsed.text,
+      reasoning: parsed.reasoning,
+      modelUsed: wasFallback ? getFallbackModelName() : modelName,
+      _audit: { ...auditMeta, promptText: prompt, latencyMs, wasFallbackModel: wasFallback },
+    };
   });
 }
 
@@ -928,6 +971,8 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
       generationConfig: GENERATION_CONFIG,
     };
 
+    const fetchStart = Date.now();
+    let wasFallback = false;
     let response = await fetchWithRetry(endpoint, body);
     if (!response.ok) {
       const errorText = await response.text();
@@ -939,6 +984,7 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
         if (fallback && fallback !== resolvedModel) {
           console.log(`Primary model ${resolvedModel} not found, trying fallback ${fallback}`);
           cachedModelName = fallback;
+          wasFallback = true;
           response = await fetchWithRetry(
             `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
             body
@@ -958,15 +1004,21 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
       }
     }
 
+    const latencyMs = Date.now() - fetchStart;
     const data = await response.json();
-    logGeminiCandidate('generatePrescription', data);
+    const auditMeta = logGeminiCandidate('generatePrescription', data);
     const rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((part) => part.text)
         .filter(Boolean)
         .join('\n') || '';
     const parsed = parseReasoningFromResponse(rawText);
-    return { text: parsed.text, reasoning: parsed.reasoning, modelUsed: resolvedModel };
+    return {
+      text: parsed.text,
+      reasoning: parsed.reasoning,
+      modelUsed: wasFallback ? getFallbackModelName() : resolvedModel,
+      _audit: { ...auditMeta, promptText: combinedPrompt, latencyMs, wasFallbackModel: wasFallback },
+    };
   });
 }
 

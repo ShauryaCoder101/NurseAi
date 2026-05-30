@@ -39,6 +39,18 @@ This document tracks planned architectural optimizations and engineering tasks f
 - Fixed `TypeError: prescriptionText.trim is not a function` crash.
 - Root cause: `prescriptionResult.text || prescriptionResult` fell back to the whole object when `text` was an empty string (falsy). Changed to nullish coalescing (`??`) with an explicit type check.
 
+#### 6. Delete Local Audio Files After Supabase Upload
+**Implemented:** `backend/src/controllers/audioController.js`, `backend/src/controllers/metricsController.js`
+- After a successful Supabase upload and DB update, the local copy in `uploads/audio/` is now deleted via `fs.unlink`.
+- Prevents indefinite disk accumulation of audio files that are already stored in Supabase.
+- `benchmarkController.js` (backfill endpoint) intentionally excluded — it uploads pre-existing local files and should not delete its source.
+
+#### 7. Stop Writing to `ai_reasoning_log`
+**Implemented:** `backend/src/controllers/audioController.js`, `backend/src/controllers/transcriptController.js`
+- Removed INSERT calls to `ai_reasoning_log` for the diagnosis, prescription, and followup stages.
+- `gemini_audit_log` captures a superset of this data (reasoning text, model, stage, token counts, latency) and is now the single write target for AI call auditing.
+- The `ai_reasoning_log` table and its read queries in `patientRecordController.js` and `patientRecordHtmlService.js` are retained to keep existing historical data accessible.
+
 ---
 
 ## 🔍 Future Considerations

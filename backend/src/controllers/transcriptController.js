@@ -4,6 +4,7 @@ const {dbHelpers} = require('../config/database');
 const {generateGeminiFollowup, generateProformaResponse} = require('../services/geminiService');
 const {fetchPatientHistory} = require('./audioController');
 const {regeneratePatientHtml} = require('../services/patientRecordHtmlService');
+const {insertGeminiAuditLog} = require('../services/geminiAuditLog');
 
 // Get all transcripts
 async function getTranscripts(req, res) {
@@ -433,6 +434,18 @@ async function followupGeminiSuggestion(req, res) {
     const followupReasoning = followupResult.reasoning || null;
     const followupModel = followupResult.modelUsed || null;
 
+    // Gemini audit log — fire and forget
+    insertGeminiAuditLog({
+      stage: 'followup',
+      userUid: userId,
+      patientId: effectivePatientId || null,
+      transcriptId: id,
+      modelUsed: followupModel,
+      finalOutput: updatedContent,
+      reasoningText: followupReasoning ? JSON.stringify(followupReasoning) : null,
+      ...(followupResult._audit || {}),
+    }).catch(() => {});
+
     // We no longer update the main transcript content with the follow-up answer.
     // The original prescription/diagnosis remains intact.
     // The follow-up interaction is saved purely in the followup_log.
@@ -454,29 +467,6 @@ async function followupGeminiSuggestion(req, res) {
       );
     } catch (logErr) {
       console.error('Failed to save follow-up log:', logErr);
-    }
-
-    // Save AI reasoning audit log for follow-up
-    if (followupReasoning) {
-      try {
-        await dbHelpers.run(
-          `INSERT INTO ai_reasoning_log
-            (transcript_id, audio_record_id, patient_id, stage, input_summary, reasoning_steps, output_summary, model_used)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            id,
-            transcript.audio_record_id || null,
-            effectivePatientId || null,
-            'followup',
-            followupReasoning.input_summary || null,
-            JSON.stringify(followupReasoning.steps || followupReasoning),
-            followupReasoning.output_summary || null,
-            followupModel,
-          ]
-        );
-      } catch (reasoningErr) {
-        console.error('Failed to save follow-up reasoning:', reasoningErr);
-      }
     }
 
     // Regenerate patient HTML file after follow-up

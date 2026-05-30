@@ -179,6 +179,9 @@ async function runAudioMetrics(req, res) {
                 'UPDATE audio_records SET file_url = $1, storage_path = $2 WHERE id = $3',
                 [uploadResult.publicUrl, uploadResult.storagePath, recordId]
               );
+              fs.unlink(renamedPath, (err) => {
+                if (err) console.error('Failed to delete local audio after Supabase upload:', err);
+              });
             }
           } catch (_) {
             // Supabase failure is non-fatal for metrics
