@@ -606,37 +606,27 @@ async function flagGeminiSuggestion(req, res) {
       });
     }
 
-    const insertResult = await dbHelpers.run(
-      `INSERT INTO flagged_suggestions
-        (transcript_id, audio_record_id, user_uid, patient_id, content, reason)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (transcript_id) DO NOTHING`,
-      [
-        transcript.id,
-        transcript.audio_record_id || null,
-        userId,
-        transcript.patient_id || null,
-        transcript.content || '',
-        reason && String(reason).trim().length > 0 ? String(reason).trim() : null,
-      ]
+    const cleanReason = reason && String(reason).trim().length > 0 ? String(reason).trim() : null;
+
+    const updateResult = await dbHelpers.run(
+      `UPDATE gemini_audit_log
+       SET clinician_action = 'flagged', clinician_action_at = CURRENT_TIMESTAMP
+       WHERE transcript_id = $1 AND (clinician_action IS NULL OR clinician_action != 'flagged')`,
+      [transcript.id]
     );
 
-    const flagged = await dbHelpers.get(
-      `SELECT * FROM flagged_suggestions WHERE transcript_id = $1 AND user_uid = $2`,
-      [transcript.id, userId]
-    );
+    const alreadyFlagged = updateResult.changes === 0;
 
     res.json({
       success: true,
       data: {
-        id: flagged?.id || null,
         transcriptId: transcript.id,
-        audioRecordId: flagged?.audio_record_id || transcript.audio_record_id || null,
-        patientId: flagged?.patient_id || transcript.patient_id || null,
-        userUid: flagged?.user_uid || userId,
-        reason: flagged?.reason || null,
-        flaggedAt: flagged?.flagged_at || null,
-        alreadyFlagged: insertResult.changes === 0,
+        audioRecordId: transcript.audio_record_id || null,
+        patientId: transcript.patient_id || null,
+        userUid: userId,
+        reason: cleanReason,
+        flaggedAt: new Date().toISOString(),
+        alreadyFlagged,
       },
     });
   } catch (error) {

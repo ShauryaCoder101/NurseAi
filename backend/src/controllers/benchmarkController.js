@@ -57,10 +57,14 @@ async function getBenchmarkSuggestions(req, res) {
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
 
     let query =
-      `SELECT ar.*, fs.id AS flagged_id
+      `SELECT ar.*, gal.id AS flagged_id
        FROM audio_records ar
-       LEFT JOIN flagged_suggestions fs
-         ON fs.audio_record_id = ar.id
+       LEFT JOIN (
+         SELECT DISTINCT ON (audio_record_id) id, audio_record_id
+         FROM gemini_audit_log
+         WHERE clinician_action = 'flagged'
+         ORDER BY audio_record_id, created_at DESC
+       ) gal ON gal.audio_record_id = ar.id
        WHERE 1 = 1`;
     const params = [];
 

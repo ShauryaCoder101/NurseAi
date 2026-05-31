@@ -411,6 +411,18 @@ async function initializeDatabase() {
       )
     `);
 
+    // Patients table — canonical record per (patient_id, nurse) pair
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS patients (
+        patient_id VARCHAR(255) NOT NULL,
+        user_uid VARCHAR(16) NOT NULL,
+        patient_name VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (patient_id, user_uid),
+        FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
+      )
+    `);
+
     // Gemini audit log — one row per LLM call, across all stages
     await client.query(`
       CREATE TABLE IF NOT EXISTS gemini_audit_log (
@@ -475,6 +487,9 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_followup_log_patient_id ON followup_log(patient_id)
     `);
     await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_patients_user_uid ON patients(user_uid)
+    `);
+    await client.query(`
       CREATE INDEX IF NOT EXISTS idx_gemini_audit_log_stage ON gemini_audit_log(stage)
     `);
     await client.query(`
@@ -490,9 +505,18 @@ async function initializeDatabase() {
     // Data migration: backfill file_url for existing local audio records
     // This is safe to run multiple times - only updates NULL values
     await client.query(`
-      UPDATE audio_records 
-      SET file_url = '/uploads/audio/' || file_name 
+      UPDATE audio_records
+      SET file_url = '/uploads/audio/' || file_name
       WHERE file_url IS NULL AND file_name IS NOT NULL
+    `);
+
+    // Backfill patients from existing audio_records
+    await client.query(`
+      INSERT INTO patients (patient_id, patient_name, user_uid)
+      SELECT DISTINCT ON (patient_id, user_uid) patient_id, patient_name, user_uid
+      FROM audio_records
+      WHERE patient_id IS NOT NULL AND user_uid IS NOT NULL
+      ON CONFLICT (patient_id, user_uid) DO NOTHING
     `);
 
     await client.query(`

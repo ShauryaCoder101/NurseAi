@@ -51,6 +51,20 @@ This document tracks planned architectural optimizations and engineering tasks f
 - `gemini_audit_log` captures a superset of this data (reasoning text, model, stage, token counts, latency) and is now the single write target for AI call auditing.
 - The `ai_reasoning_log` table and its read queries in `patientRecordController.js` and `patientRecordHtmlService.js` are retained to keep existing historical data accessible.
 
+#### 8. Add `patients` Table for Canonical Patient Records
+**Implemented:** `backend/src/config/database.js`, `backend/src/controllers/audioController.js`
+- Added `patients` table with composite PK `(patient_id, user_uid)` so each nurse owns their patient records.
+- Backfills from existing `audio_records` on startup (safe to re-run).
+- Every new audio upload upserts into `patients`, keeping `patient_name` up to date.
+- Existing tables retain their `patient_id VARCHAR(255)` columns — FK constraints can be added later once data is validated.
+
+#### 9. Stop Writing to `flagged_suggestions`; Route Clinician Actions Through `gemini_audit_log`
+**Implemented:** `backend/src/controllers/transcriptController.js`, `backend/src/controllers/doctorController.js`, `backend/src/controllers/benchmarkController.js`
+- Nurse flag endpoint now updates `gemini_audit_log.clinician_action = 'flagged'` instead of inserting into `flagged_suggestions`.
+- Doctor verify endpoint (`verifyVisit`) now also updates `gemini_audit_log.clinician_action` ('verified' or 'flagged') as a fire-and-forget alongside the existing `transcripts` update.
+- `benchmarkController` query updated to LEFT JOIN `gemini_audit_log` for flagged status instead of `flagged_suggestions`.
+- `flagged_suggestions` table and all existing read queries retained for historical data.
+
 ---
 
 ## 🔍 Future Considerations

@@ -105,11 +105,18 @@ async function verifyVisit(req, res) {
     const status = parseInt(rating, 10) < 7 ? 'flagged' : 'verified';
 
     await dbHelpers.run(
-      `UPDATE transcripts 
+      `UPDATE transcripts
        SET verification_status = $1, doctor_rating = $2, doctor_remarks = $3, verified_at = CURRENT_TIMESTAMP
        WHERE id = $4`,
       [status, parseInt(rating, 10), remarks || null, id]
     );
+
+    dbHelpers.run(
+      `UPDATE gemini_audit_log
+       SET clinician_action = $1, clinician_action_at = CURRENT_TIMESTAMP
+       WHERE transcript_id = $2`,
+      [status, id]
+    ).catch(err => console.error('Failed to update gemini_audit_log clinician_action:', err));
 
     res.json({
       success: true, 

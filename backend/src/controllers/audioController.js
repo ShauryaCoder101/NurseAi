@@ -123,6 +123,15 @@ async function uploadAudio(req, res) {
       ]
     );
 
+    if (patientId) {
+      dbHelpers.run(
+        `INSERT INTO patients (patient_id, patient_name, user_uid)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (patient_id, user_uid) DO UPDATE SET patient_name = EXCLUDED.patient_name`,
+        [patientId, patientName || null, userUid]
+      ).catch(err => console.error('Failed to upsert patient:', err));
+    }
+
     let fileUrl = null;
     let storagePath = null;
     if (isStorageConfigured()) {
