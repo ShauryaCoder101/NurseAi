@@ -271,6 +271,7 @@ async function login(req, res) {
     // Normalize email for consistent checking
     const normalizedEmail = email.toLowerCase().trim();
 
+
     // Get user (case-insensitive)
     const user = await dbHelpers.get('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
 

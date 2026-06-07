@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Default to local backend in dev; allow override via EXPO_PUBLIC_API_URL.
 const DEV_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
-  'http://192.168.86.215:3000/api';
+  'http://localhost:3000/api';
 
 const PROD_API_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -134,6 +134,7 @@ export const apiCall = async (endpoint, options = {}) => {
     
     const headers = {
       'Content-Type': 'application/json',
+      'bypass-tunnel-reminder': 'true',
       ...options.headers,
     };
 
@@ -463,7 +464,7 @@ export const apiService = {
       if (patientName) formData.append('patientName', patientName);
       if (patientId) formData.append('patientId', patientId);
 
-      const headers = {};
+      const headers = {'bypass-tunnel-reminder': 'true'};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
@@ -517,7 +518,7 @@ export const apiService = {
       formData.append('audio', {uri: normalizedUri, name: filename, type: fileType});
       if (patientId) formData.append('patientId', patientId);
 
-      const headers = {};
+      const headers = {'bypass-tunnel-reminder': 'true'};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
@@ -582,7 +583,7 @@ export const apiService = {
         type: fileType,
       });
 
-      const headers = {};
+      const headers = {'bypass-tunnel-reminder': 'true'};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }

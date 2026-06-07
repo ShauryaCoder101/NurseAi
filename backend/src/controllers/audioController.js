@@ -42,6 +42,7 @@ function sanitizeSegment(value) {
 }
 
 async function uploadAudio(req, res) {
+  let audio2File;
   try {
     ensureUploadDir();
 
@@ -51,7 +52,7 @@ async function uploadAudio(req, res) {
 
     const audioFile = req.files?.audio?.[0];
     const photoFile = req.files?.photo?.[0];
-    const audio2File = req.files?.audio2?.[0];
+    audio2File = req.files?.audio2?.[0];
 
     if (!audioFile) {
       return res.status(400).json({
