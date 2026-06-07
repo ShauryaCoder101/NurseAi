@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { retrieve, buildGuidelineContext, resolveCitations } = require('./rag/retriever');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-pro-preview';
@@ -24,6 +25,31 @@ let geminiQueue = Promise.resolve();
 let lastGeminiRequestAt = 0;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Maps a 0-indexed month to the prevailing season in West Bengal, India.
+function westBengalSeason(monthIndex) {
+  if (monthIndex >= 2 && monthIndex <= 4) return 'pre-monsoon / summer';
+  if (monthIndex >= 5 && monthIndex <= 8) return 'monsoon';
+  if (monthIndex >= 9 && monthIndex <= 10) return 'post-monsoon / autumn';
+  return 'winter';
+}
+
+// Real current date/season injected into prompts at request time so the model
+// never has to guess the date. Computed in Asia/Kolkata to match the field setting.
+function getTemporalContext() {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+  const month = now.toLocaleString('en-IN', { month: 'long', timeZone: 'Asia/Kolkata' });
+  const monthIndex = Number(
+    now.toLocaleString('en-US', { month: 'numeric', timeZone: 'Asia/Kolkata' })
+  ) - 1;
+  const season = westBengalSeason(monthIndex);
+  return (
+    `CURRENT DATE & SEASON (authoritative — do not guess or override): ` +
+    `Today is ${date} (${month}). The current season in West Bengal is ${season}. ` +
+    `Use this exact date and season for any temporal or seasonal reasoning.`
+  );
+}
 
 function logGeminiCandidate(source, data) {
   const candidate = data?.candidates?.[0];
@@ -604,24 +630,15 @@ Tiered Investigations: * Tier 1: Easy, cheap, reliable tests to rule in common l
 Tier 2: Expensive or specialized tests recommended only if Tier 1 is negative and the patient is referred to a supervising doctor.
 Safety Netting: Clearly define the follow-up timeline and "Return Precautions" using local terminology.
 
-Operational Guidelines & Tool Call Protocol
+Operational Guidelines & Grounding Protocol
 1. Guideline & Evidence Validation
-Before finalizing the management plan, you must use the search tool to verify that recommendations align with the following hierarchy of authority:
-Local/State: West Bengal Health & Family Welfare Department (WBHFW) protocols (especially for endemic diseases like Malaria, Dengue, or Japanese Encephalitis).
-National: Government of India (GoI) Ministry of Health (MoHFW) or ICMR (Indian Council of Medical Research) guidelines.
-Global (Backup): WHO or UpToDate guidelines if local/national ones are unavailable.
-Specific Search Triggers:
-Red Flags: If a "Do-Not-Miss" diagnosis is suspected (e.g., Scrub Typhus), search for: "ICMR treatment guidelines for [Condition] 2024-2026 India."
-Public Health: If suggesting a public health notification disease, search for: "West Bengal health department reporting protocol for [Condition]."
-Referrals: If suggesting a referral, search for: "Referral criteria for [Condition] West Bengal government hospitals."
-2. Step-by-Step Tool Verification Protocol
-To prevent hallucination, follow these internal steps before finalizing any recommendation:
-Search & Extract: When you perform a tool call, explicitly identify the source (e.g., "According to the ICMR 2024 PDF snippet...").
-Cross-Check: Compare tool results against internal knowledge. If there is a conflict (e.g., training data suggests one dose, but the 2026 search result suggests another), default to the 2026 search result but note the change.
-The "Zero-Tolerance" Rule: If a search result is vague or doesn't specify a dosage, DO NOT GUESS. Instead, state: "Current localized dosage guidelines were not found; consult a supervising doctor before prescribing [Medication]."
-Prohibit "Ghost Citations": Never mention a guideline (e.g., "Per WBHFW guidelines...") unless you have successfully retrieved it via the search tool in the current session.
+You are provided a GUIDELINE PASSAGES section containing verbatim excerpts from the ICMR Standard Treatment Workflows (STW). These are your authoritative sources. Before finalizing the plan, check your recommendations against these passages and cite them.
+2. Grounding Rules (to prevent hallucination)
+Cite Only Provided Passages: When a recommendation is supported by a passage, append its tag (e.g., [G2]) to that line. Never cite, name, or paraphrase any guideline, study, PDF, or source that is NOT in the GUIDELINE PASSAGES section.
+The "Zero-Tolerance" Rule: If the passages do not specify a dosage or step you need, DO NOT GUESS or invent a source. Instead, state: "STW guidance for this point was not available; consult a supervising doctor before prescribing [Medication]."
+Prohibit "Ghost Citations": Do NOT write phrases like "Per WBHFW guidelines..." or "According to ICMR 2024..." unless that exact passage appears below with a [G#] tag. An uncited recommendation is acceptable; a fabricated citation is not.
 3. Context & Language
-Temporality: Always consider the current date (it is 2026) and seasonal peaks (e.g., monsoon-related illnesses like Malaria or Scrub Typhus).
+Temporality: Use the CURRENT DATE & SEASON provided in the context above for all temporal reasoning, and weigh seasonal peaks accordingly (e.g., monsoon-related illnesses like Malaria or Scrub Typhus). Never invent or assume a date.
 Bilingual Bridge: Maintain a dual-language approach. Use English for clinical sections and simple English with Bengali vernacular for patient education.
 Tone: Authentic, supportive, and peer-to-peer.
 
@@ -647,9 +664,8 @@ When to Worry: Simplified return precautions using local descriptors.
 Verification Output Requirement
 At the very end of your response, include this "Source Validation" footer:
 Source Validation:
-Guideline used: [Name of guideline retrieved via tool]
-Last Verified: [Date/Year from the search result]
-Confidence Level: [High/Medium/Low based on search match]`;
+Guidelines used: [List the [G#] tags you cited above, or "None - no STW passage matched this case"]
+Confidence Level: [High/Medium/Low based on how directly the passages matched]`;
 
 const PROFORMA_GEM_PROMPT = `Role: You are Proforma Gem, a specialized clinical decision support AI designed to assist Nurse Practitioners and medical students in rural West Bengal, India. Your goal is to optimize the first 5–6 minutes of a patient interview to reach a diagnosis efficiently while ensuring "do-not-miss" conditions are addressed.
 
@@ -810,7 +826,7 @@ async function generateExtractedProforma({ audioPath, mimeType, patientId }) {
       throw new Error('Extraction returned empty result.');
     }
 
-    const proformaPrompt = `${PROFORMA_GEM_PROMPT}\n\nExtracted Patient Data:\n${extractedText.trim()}`;
+    const proformaPrompt = `${getTemporalContext()}\n\n${PROFORMA_GEM_PROMPT}\n\nExtracted Patient Data:\n${extractedText.trim()}`;
 
     const proformaEndpoint = `${GEMINI_API_BASE_URL}/${cachedModelName || modelName}:generateContent?key=${GEMINI_API_KEY}`;
     const proformaBody = {
@@ -943,7 +959,31 @@ async function generatePrescription({ diagnosisText, answerAudioPath, answerMime
       throw new Error('No compatible Gemini model found for generateContent.');
     }
 
-    const combinedPrompt = `${PRESCRIPTION_PROMPT}
+    // RAG: retrieve authoritative STW guideline passages relevant to the
+    // diagnosis/differentials and inject them as the ONLY citable sources.
+    // Degrades gracefully to no grounding if the index isn't built.
+    let guidelineCtx = { contextBlock: '', allowedTags: new Set(), tagToLabel: {} };
+    try {
+      const hits = await retrieve(diagnosisText);
+      guidelineCtx = buildGuidelineContext(hits);
+      if (hits.length) {
+        console.log(`[RAG] injected ${hits.length} STW passages into prescription`);
+      }
+    } catch (ragErr) {
+      console.warn('[RAG] retrieval skipped:', ragErr.message);
+    }
+
+    const groundingDirective = guidelineCtx.contextBlock
+      ? guidelineCtx.contextBlock
+      : 'No STW guideline passages were retrieved for this case. Do NOT cite or ' +
+        'name any specific guideline; base advice on general clinical reasoning ' +
+        'and clearly note that localized guideline confirmation was unavailable.';
+
+    const combinedPrompt = `${getTemporalContext()}
+
+${PRESCRIPTION_PROMPT}
+
+${groundingDirective}
 
 --- Context from 2Diagnosis ---
 ${diagnosisText}
@@ -1013,8 +1053,11 @@ The attached audio contains the nurse's verbal answers to the clarifying questio
         .filter(Boolean)
         .join('\n') || '';
     const parsed = parseReasoningFromResponse(rawText);
+    // Replace [G#] tags with full citation labels; strip any tag the model
+    // invented that wasn't in the retrieved set (kills ghost citations).
+    const groundedText = resolveCitations(parsed.text, guidelineCtx.tagToLabel);
     return {
-      text: parsed.text,
+      text: groundedText,
       reasoning: parsed.reasoning,
       modelUsed: wasFallback ? getFallbackModelName() : resolvedModel,
       _audit: { ...auditMeta, promptText: combinedPrompt, latencyMs, wasFallbackModel: wasFallback },

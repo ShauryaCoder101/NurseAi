@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon --ignore uploads/ --ignore patient_records/ src/server.js",
+    "rag:extract": "python3 rag/extract_pdf.py",
+    "rag:ingest": "node rag/ingest.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
