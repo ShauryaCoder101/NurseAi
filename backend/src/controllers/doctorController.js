@@ -201,7 +201,7 @@ async function streamAudio(req, res) {
         // 3. Try Supabase Storage
         const {createSignedAudioUrl, isStorageConfigured} = require('../services/supabaseStorage');
         if (isStorageConfigured()) {
-          const storagePath = bmCase.storage_path || `audio_records/${bmCase.id}/${bmCase.file_name}`;
+          const storagePath = bmCase.local_path || bmCase.storage_path || `audio_records/${bmCase.id}/${bmCase.file_name}`;
           try {
             const signedUrl = await createSignedAudioUrl(storagePath, 600);
             if (signedUrl) {
@@ -317,7 +317,7 @@ async function getBenchmarkingCases(req, res) {
 
     const cases = await dbHelpers.all(`
       SELECT br.id, br.file_name, br.file_size, br.mime_type, br.local_path, br.created_at,
-             bp.transcript, bp.prescription, bp.diagnosis,
+             bp.transcript, bp.prescription, bp.diagnosis, bp.proforma_text,
              bp.reasoning_steps, bp.reasoning_input, bp.reasoning_output,
              bp.model_used, bp.status,
              COALESCE(br.batch, 'benchmark-1') AS batch
@@ -330,10 +330,20 @@ async function getBenchmarkingCases(req, res) {
     // Number each batch separately
     let b1Count = 0;
     let b2Count = 0;
+    let b3Count = 0;
     const formatted = cases.map((c) => {
       const batch = c.batch || 'benchmark-1';
-      const batchIndex = batch === 'benchmark-2' ? ++b2Count : ++b1Count;
-      const batchLabel = batch === 'benchmark-2' ? 'Benchmark-2' : 'Benchmark-1';
+      let batchIndex, batchLabel;
+      if (batch === 'benchmark-3') {
+        batchIndex = ++b3Count;
+        batchLabel = 'Benchmark-3';
+      } else if (batch === 'benchmark-2') {
+        batchIndex = ++b2Count;
+        batchLabel = 'Benchmark-2';
+      } else {
+        batchIndex = ++b1Count;
+        batchLabel = 'Benchmark-1';
+      }
 
       return {
         id: c.id,
@@ -352,6 +362,7 @@ async function getBenchmarkingCases(req, res) {
         reasoningOutput: c.reasoning_output || null,
         modelUsed: c.model_used || null,
         isBenchmarkData: true,
+        proforma: c.proforma_text || null,
         batch: batch,
         batchIndex: batchIndex,
       };

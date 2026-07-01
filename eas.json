@@ -3,6 +3,16 @@
     "version": ">= 8.0.0"
   },
   "build": {
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "apk": {
       "android": {
         "buildType": "apk"

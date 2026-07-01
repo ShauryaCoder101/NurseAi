@@ -2,6 +2,7 @@
 let token = localStorage.getItem('doctorToken');
 let doctorInfo = JSON.parse(localStorage.getItem('doctorInfo') || 'null');
 let cases = [];
+let casesLoaded = false;
 let selectedCase = null;
 let transcripts = {}; // audioId -> transcript text (cached)
 let completedCases = new Set(); // IDs of cases marked as done
@@ -25,12 +26,28 @@ const detailContent = document.getElementById('detailContent');
 function init() {
   if (token && doctorInfo) {
     showApp();
+    showSkeletonLoading();
     fetchCases();
     fetchCompletedCases();
   } else {
     showLogin();
   }
   setupEvents();
+}
+
+function showSkeletonLoading() {
+  let html = '';
+  for (let i = 0; i < 12; i++) {
+    html += `<div class="skeleton-item" style="animation-delay: ${i * 0.05}s">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <div class="skeleton-line medium"></div>
+        <div class="skeleton-badge"></div>
+      </div>
+      <div class="skeleton-line long"></div>
+      <div class="skeleton-line short"></div>
+    </div>`;
+  }
+  caseList.innerHTML = html;
 }
 
 function showLogin() {
@@ -102,6 +119,7 @@ async function fetchCases() {
     const data = await res.json();
     if (data.success) {
       cases = data.data;
+      casesLoaded = true;
       renderCaseList();
 
       // Auto-select case from URL param (from metrics page link)
@@ -119,10 +137,12 @@ async function fetchCases() {
         }
       }
     } else {
+      casesLoaded = true;
       caseList.innerHTML = `<div class="empty-state">Error: ${data.error}</div>`;
     }
   } catch (err) {
     console.error('Failed to fetch cases', err);
+    casesLoaded = true;
     caseList.innerHTML = `<div class="empty-state">Error loading cases. <button onclick="fetchCases()" style="background:none; border:none; color:var(--accent); cursor:pointer; text-decoration:underline;">Retry</button></div>`;
   }
 }
@@ -135,7 +155,7 @@ async function fetchCompletedCases() {
     const data = await res.json();
     if (data.success) {
       completedCases = new Set(data.data);
-      renderCaseList(searchBox.value);
+      if (casesLoaded) renderCaseList(searchBox.value);
     }
   } catch (err) {
     console.error('Failed to fetch completed cases', err);
@@ -162,15 +182,20 @@ function renderCaseList(searchQuery = '') {
     return;
   }
 
-  // Sort: unmarked before marked (per doctor)
+  // Sort: B3 unmarked first, then B3 marked, then B2 (done), then B1 (done)
+  const batchOrder = {'benchmark-3': 0, 'benchmark-2': 1, 'benchmark-1': 2};
   filtered = filtered.sort((a, b) => {
-    const aDone = completedCases.has(a.id) ? 1 : 0;
-    const bDone = completedCases.has(b.id) ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone;
-    // Within same done status, sort by batch then index
     const aBatch = a.batch || 'benchmark-1';
     const bBatch = b.batch || 'benchmark-1';
-    if (aBatch !== bBatch) return aBatch.localeCompare(bBatch);
+    const aOrder = batchOrder[aBatch] ?? 2;
+    const bOrder = batchOrder[bBatch] ?? 2;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    // Within B3: unmarked before marked
+    if (aBatch === 'benchmark-3') {
+      const aDone = completedCases.has(a.id) ? 1 : 0;
+      const bDone = completedCases.has(b.id) ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+    }
     return (a.batchIndex || 0) - (b.batchIndex || 0);
   });
 
@@ -179,17 +204,19 @@ function renderCaseList(searchQuery = '') {
   if (sidebarTitle) {
     const b1 = cases.filter(c => (c.batch || 'benchmark-1') === 'benchmark-1').length;
     const b2 = cases.filter(c => c.batch === 'benchmark-2').length;
-    sidebarTitle.textContent = `📋 Cases (B1: ${b1} · B2: ${b2})`;
+    const b3 = cases.filter(c => c.batch === 'benchmark-3').length;
+    sidebarTitle.textContent = `📋 Cases (B1: ${b1} · B2: ${b2} · B3: ${b3})`;
   }
 
   filtered.forEach((c) => {
     const isActive = selectedCase && selectedCase.id === c.id;
     const hasRx = !!c.prescription;
-    const isDone = completedCases.has(c.id);
-    const date = new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const batch = c.batch || 'benchmark-1';
-    const batchShort = batch === 'benchmark-2' ? 'B2' : 'B1';
-    const batchColor = batch === 'benchmark-2' ? '#a78bfa' : '#60a5fa';
+    // B1 and B2 cases always shown as done
+    const isDone = (batch === 'benchmark-1' || batch === 'benchmark-2') ? true : completedCases.has(c.id);
+    const date = new Date(c.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const batchShort = batch === 'benchmark-3' ? 'B3' : batch === 'benchmark-2' ? 'B2' : 'B1';
+    const batchColor = batch === 'benchmark-3' ? '#f59e0b' : batch === 'benchmark-2' ? '#a78bfa' : '#60a5fa';
 
     const el = document.createElement('div');
     el.className = `case-item${isActive ? ' active' : ''}${isDone ? ' done' : ''}`;
@@ -354,16 +381,7 @@ async function renderDetail(c) {
     </div>
     ` : ''}
 
-    <!-- Clarifying Questions / Diagnosis Section -->
-    ${c.diagnosis ? `
-    <div class="section-card">
-      <div class="section-card-header">
-        <div class="section-icon" style="background: rgba(251, 191, 36, 0.15); font-size: 16px;">🔍</div>
-        <div class="section-title">Clarifying Questions (2Diagnosis)</div>
-      </div>
-      <div class="section-body" style="white-space: pre-wrap;">${escapeHtml(c.diagnosis)}</div>
-    </div>
-    ` : ''}
+
 
     <!-- Prescription Section -->
     ${c.prescription ? `

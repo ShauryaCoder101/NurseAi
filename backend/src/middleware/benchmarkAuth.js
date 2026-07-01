@@ -1,25 +1,37 @@
+const jwt = require('jsonwebtoken');
+
 function benchmarkAuth(req, res, next) {
   const expectedPassword = process.env.BENCHMARK_PASSWORD;
-  if (!expectedPassword) {
-    return res.status(500).json({
-      success: false,
-      error: 'Benchmark password is not configured.',
-    });
-  }
 
+  // Check benchmark password first (original flow)
   const provided =
     req.headers['x-benchmark-password'] ||
     req.headers['x-company-password'] ||
     req.query?.password;
 
-  if (!provided || provided !== expectedPassword) {
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid benchmark password.',
-    });
+  if (provided && expectedPassword && provided === expectedPassword) {
+    return next();
   }
 
-  return next();
+  // Also accept doctor JWT token (so the portal can call benchmark APIs)
+  const doctorToken =
+    req.headers['x-benchmark-key'] ||
+    (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+
+  if (doctorToken) {
+    try {
+      const secret = process.env.DOCTOR_JWT_SECRET || process.env.JWT_SECRET || 'nurse-ai-doctor-secret';
+      jwt.verify(doctorToken, secret);
+      return next();
+    } catch (_) {
+      // Token invalid, fall through
+    }
+  }
+
+  return res.status(401).json({
+    success: false,
+    error: 'Invalid benchmark password or token.',
+  });
 }
 
 module.exports = {

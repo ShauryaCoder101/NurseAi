@@ -3,6 +3,30 @@
 const {dbHelpers} = require('../config/database');
 const path = require('path');
 const {regeneratePatientHtml, generateVisitHtml} = require('../services/patientRecordHtmlService');
+const {createSignedAudioUrl, isStorageConfigured} = require('../services/supabaseStorage');
+
+/**
+ * Resolve audio URL — always prefer a fresh Supabase signed URL.
+ * Reconstructs storage_path from recordId + fileName if not stored in DB.
+ */
+async function resolveAudioUrl(fileUrl, storagePath, recordId, fileName) {
+  // Reconstruct storage_path if missing but we have recordId + fileName
+  if (!storagePath && recordId && fileName) {
+    const safeName = String(fileName).replace(/\\/g, '/');
+    storagePath = `audio_records/${recordId}/${safeName}`;
+  }
+  // If we have a storage_path and Supabase is configured, always use signed URL
+  if (storagePath && isStorageConfigured()) {
+    try {
+      const signedUrl = await createSignedAudioUrl(storagePath, 3600); // 1 hour
+      if (signedUrl) return signedUrl;
+    } catch (err) {
+      console.error('Failed to create signed audio URL:', err.message);
+    }
+  }
+  // Fallback to whatever file_url we have
+  return fileUrl || null;
+}
 
 async function getPatientRecord(req, res) {
   try {
@@ -403,7 +427,7 @@ async function getVisitRecordHtml(req, res) {
       visitMap.set(ar.id, {
         visitNumber: index + 1,
         timestamp: ar.created_at,
-        audioRecord: { id: ar.id, fileName: ar.file_name, fileSize: ar.file_size, mimeType: ar.mime_type, fileUrl: ar.file_url },
+        audioRecord: { id: ar.id, fileName: ar.file_name, fileSize: ar.file_size, mimeType: ar.mime_type, fileUrl: ar.file_url, storagePath: ar.storage_path },
         diagnosis: null, prescription: null, followups: [],
         aiAuditTrail: { diagnosisReasoning: null, prescriptionReasoning: null, followupReasoning: [] },
         flagged: null,
@@ -439,6 +463,18 @@ async function getVisitRecordHtml(req, res) {
     const visits = Array.from(visitMap.values());
     visits.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     visits.forEach((v, i) => (v.visitNumber = i + 1));
+
+    // Resolve audio URLs — replace local paths with Supabase signed URLs for deployment
+    for (const visit of visits) {
+      if (visit.audioRecord && (visit.audioRecord.fileUrl || visit.audioRecord.id)) {
+        visit.audioRecord.fileUrl = await resolveAudioUrl(
+          visit.audioRecord.fileUrl,
+          visit.audioRecord.storagePath,
+          visit.audioRecord.id,
+          visit.audioRecord.fileName
+        );
+      }
+    }
 
     const record = { patientId, patientName, generatedAt: new Date().toISOString(), visits };
 

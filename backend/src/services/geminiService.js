@@ -13,7 +13,7 @@ const GEMINI_LOG_ENABLED =
   process.env.GEMINI_LOG_ENABLED === 'true' ||
   process.env.NODE_ENV !== 'production';
 const GEMINI_LOG_INCLUDE_RAW = process.env.GEMINI_LOG_INCLUDE_RAW === 'true';
-const GEMINI_MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS || 2000);
+const GEMINI_MIN_INTERVAL_MS = Number(process.env.GEMINI_MIN_INTERVAL_MS || 0);
 const GEMINI_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES || 3);
 const GEMINI_BACKOFF_MS = Number(process.env.GEMINI_BACKOFF_MS || 2000);
 const GEMINI_MAX_BACKOFF_MS = Number(process.env.GEMINI_MAX_BACKOFF_MS || 15000);
@@ -61,6 +61,53 @@ function parseReasoningFromResponse(fullText) {
 
   return { text: clinicalText, reasoning };
 }
+
+const PRESCRIPTION_3_PROMPT = `Role & Context
+You are "3Prescription," the final stage of a clinical decision-support workflow designed for Nurse Practitioners and medical students in rural West Bengal. Your objective is to synthesize the initial screening (from 1Proforma) and the diagnostic clarifications (from 2Diagnosis) into a pragmatic, tiered management plan. You prioritize patient safety and resource stewardship over exhaustive diagnostic certainty.
+
+Core Management Priorities
+When formulating your plan, you must adhere to these priorities in order:
+Triage & Escalation: Immediately identify if there is a high probability of a high-risk clinical event. If so, adopt a "Stabilize and Transfer" approach.
+Clinical Supervision: Explicitly flag the need for a supervising doctor if advanced/costly tests or potentially toxic treatments (e.g., specific antibiotics, high-risk cardiac meds) are indicated.
+Symptom Relief: Prioritize the patient's immediate comfort and functional status.
+Pragmatic Diagnostics: Suggest tests only if they inform feasible treatment. It is not essential to reach a final diagnosis if the process is too costly, complicated, or risky for the patient.
+Tiered Investigations:
+- Tier 1: Easy, cheap, reliable tests to rule in common local diagnoses (e.g., Anemia, GERD, Dehydration) or rule out "do-not-miss" conditions.
+- Tier 2: Expensive or specialized tests recommended only if Tier 1 is negative and the patient is referred to a supervising doctor.
+Safety Netting: Clearly define the follow-up timeline and "Return Precautions" using local terminology.
+
+Operational Guidelines
+1. Guideline & Evidence Validation
+Before finalizing the management plan, verify that recommendations align with the following hierarchy of authority:
+Local/State: West Bengal Health & Family Welfare Department (WBHFW) protocols (especially for endemic diseases like Malaria, Dengue, or Japanese Encephalitis).
+National: Government of India (GoI) Ministry of Health (MoHFW) or ICMR (Indian Council of Medical Research) guidelines.
+Global (Backup): WHO or UpToDate guidelines if local/national ones are unavailable.
+
+2. Context & Language
+Temporality: Always consider the current date (it is 2026) and seasonal peaks (e.g., monsoon-related illnesses like Malaria or Scrub Typhus).
+Bilingual Bridge: Maintain a dual-language approach. Use English for clinical sections and simple English with Bengali vernacular for patient education.
+Tone: Authentic, supportive, and peer-to-peer.
+
+Formatting: Do NOT use any markdown formatting. No asterisks, no bold (**), no headers (#), no underscores for emphasis. Output clean, readable plain text only. Use dashes (-) for bullet points and line breaks for separation.
+
+Output Format
+State one provisional diagnosis and three differential diagnosis and add a very very concise reasoning for each in Bengali (10-50 words).
+1) Prescription
+Disposition: State clearly if this is "Local Management" or "Stabilize and Transfer."
+Diagnostic Tests: List as Tier 1 (Immediate/Low Cost) and Tier 2 (Referral/Advanced).
+Medications: List name, dosage, frequency, and duration.
+Advice: Specific instructions on Diet and Activity relevant to the local context (e.g., field work, local water sources).
+Follow-up: Provide a specific date or timeframe for the next check-in.
+Return Precautions (Red Flags): List critical symptoms requiring immediate return, using Bengali descriptors (e.g., Buk-e-bhaar for chest heaviness).
+2) Patient Education (in Bengali)
+
+Content:
+Most Likely Diagnosis: Use broad, understandable categories.
+The Plan: What the treatment is and what the patient needs to do.
+Prognosis: What to expect in the coming days.
+When to Worry: Simplified return precautions using local descriptors.
+
+Listen to the audio recording and provide the full prescription output based on the above instructions.`;
 
 class GeminiRateLimitError extends Error {
   constructor(message, retryAfterMs) {
@@ -1014,7 +1061,7 @@ module.exports = {
   generateDiagnosisFromAudio,
   generatePrescription,
   generateExtractedProforma,
-  getBenchmarkPrompt: () => GEMINI_PROMPT,
+  getBenchmarkPrompt: () => PRESCRIPTION_3_PROMPT,
   generateBenchmarkAudio: async ({ audioPath, audioUrl, mimeType, patientId, modelName, promptText }) => {
     return runGeminiThrottled(async () => {
       if (!GEMINI_API_KEY) {
@@ -1102,6 +1149,141 @@ module.exports = {
           .filter(Boolean)
           .join('\n') || '';
       return text.trim();
+    });
+  },
+
+  /**
+   * Transcribe audio to English with speaker labels.
+   * Used by the benchmarking page to provide human-readable transcripts.
+   */
+  transcribeAudioToEnglish: async ({ audioBase64, mimeType }) => {
+    return runGeminiThrottled(async () => {
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set');
+
+      const transcriptionPrompt = `You are a medical audio translator. Listen to this audio recording of a nurse-patient conversation and produce a FULLY TRANSLATED English transcript.
+
+CRITICAL: The audio is likely in Hindi, Bengali, Bhojpuri, or another Indian language. You MUST translate every sentence into PROPER, NATURAL ENGLISH. Do NOT transliterate — do NOT write Indian language words in Roman/Latin script.
+
+WRONG (transliteration — DO NOT DO THIS):
+Nurse: Bataiye ka pareshani waar hua?
+Patient: Hepatitis ke wajah se.
+
+CORRECT (proper English translation — DO THIS):
+Nurse: Tell me, what problem brought you here?
+Patient: Because of hepatitis.
+
+INSTRUCTIONS:
+1. TRANSLATE all speech into fluent, natural English sentences — as if the conversation originally happened in English.
+2. Label each speaker as "Nurse:" or "Patient:" (or "Doctor:" if applicable).
+3. Preserve ALL medical details, symptoms, diagnoses, medications, and clinical information accurately.
+4. Maintain the conversational flow and tone.
+5. If any part is genuinely unclear, mark it as [inaudible].
+6. Do NOT include any Hindi, Bengali, Bhojpuri, or other non-English words in the output.
+
+Example output:
+Nurse: What brings you here today?
+Patient: I've been having chest pain for the last 3 days.
+Nurse: Can you describe the pain? Is it sharp or dull?
+Patient: It's a sharp pain on the left side.`;
+
+      const body = {
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: transcriptionPrompt },
+            { inlineData: { mimeType: mimeType || 'audio/mp4', data: audioBase64 } },
+          ],
+        }],
+      };
+
+      const modelName = await resolveModelName();
+      if (!modelName) throw new Error('No compatible Gemini model found.');
+
+      const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      let response = await fetchWithRetry(endpoint, body);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 429) throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+        if (response.status === 404) {
+          const fallback = getFallbackModelName();
+          if (fallback && fallback !== modelName) {
+            console.log(`Transcription: primary model ${modelName} not found, trying fallback ${fallback}`);
+            cachedModelName = fallback;
+            response = await fetchWithRetry(
+              `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+              body
+            );
+            if (!response.ok) {
+              const retryError = await response.text();
+              throw new Error(`Gemini transcription error (fallback): ${retryError}`);
+            }
+          } else {
+            throw new Error(`Gemini transcription error: ${errorText}`);
+          }
+        } else {
+          throw new Error(`Gemini transcription error: ${errorText}`);
+        }
+      }
+
+      const data = await response.json();
+      return data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n').trim() || '';
+    });
+  },
+
+  /**
+   * Process audio with 3Prescription prompt for benchmarking.
+   * Returns the full prescription output text.
+   */
+  generateBenchmarkPrescription: async ({ audioBase64, mimeType, extraPrompt }) => {
+    return runGeminiThrottled(async () => {
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is not set');
+
+      const prescriptionPrompt = (extraPrompt || PRESCRIPTION_3_PROMPT) + REASONING_PROMPT_SUFFIX;
+
+      const body = {
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: prescriptionPrompt },
+            { inlineData: { mimeType: mimeType || 'audio/mp4', data: audioBase64 } },
+          ],
+        }],
+      };
+
+      const modelName = await resolveModelName();
+      if (!modelName) throw new Error('No compatible Gemini model found.');
+
+      let usedModel = modelName;
+
+      const endpoint = `${GEMINI_API_BASE_URL}/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+      let response = await fetchWithRetry(endpoint, body);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 429) throw new GeminiRateLimitError('Gemini rate limited', parseRetryAfterMs(response));
+        if (response.status === 404) {
+          const fallback = getFallbackModelName();
+          if (fallback && fallback !== modelName) {
+            cachedModelName = fallback;
+            usedModel = fallback;
+            response = await fetchWithRetry(
+              `${GEMINI_API_BASE_URL}/${fallback}:generateContent?key=${GEMINI_API_KEY}`,
+              body
+            );
+            if (!response.ok) throw new Error(`Gemini benchmark error (fallback): ${await response.text()}`);
+          } else {
+            throw new Error(`Gemini benchmark error: ${errorText}`);
+          }
+        } else {
+          throw new Error(`Gemini benchmark error: ${errorText}`);
+        }
+      }
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n').trim() || '';
+      const parsed = parseReasoningFromResponse(rawText);
+      return { text: parsed.text, reasoning: parsed.reasoning, modelUsed: usedModel };
     });
   },
 };

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NurseAI – Benchmark Data Upload</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0f1a;
+      --bg-secondary: #111827;
+      --bg-card: #1a2235;
+      --border: #1e293b;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #14b8a6;
+      --accent-glow: rgba(20, 184, 166, 0.1);
+      --accent-border: rgba(20, 184, 166, 0.3);
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --blue: #3b82f6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .subtitle { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+    .container { max-width: 800px; margin: 0 auto; padding: 32px 24px; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 60px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: var(--bg-card);
+      margin-bottom: 24px;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+    .drop-zone .icon { font-size: 48px; margin-bottom: 16px; }
+    .drop-zone .title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .drop-zone .hint { font-size: 13px; color: var(--text-muted); }
+
+    /* File list */
+    .file-list {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      gap: 12px;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .file-item .num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--accent-glow); border: 1px solid var(--accent-border);
+      color: var(--accent); font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .file-item .name { flex: 1; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-item .size { color: var(--text-muted); font-size: 12px; }
+    .file-item .status-icon { font-size: 16px; }
+    .file-item .remove-btn {
+      background: none; border: none; color: var(--red); cursor: pointer;
+      font-size: 16px; padding: 4px; opacity: 0.6; transition: opacity 0.2s;
+    }
+    .file-item .remove-btn:hover { opacity: 1; }
+
+    /* Buttons */
+    .actions { display: flex; gap: 12px; margin-bottom: 24px; }
+    .btn {
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      color: #fff; flex: 1;
+    }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 0 20px rgba(20, 184, 166, 0.4); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+
+    /* Progress */
+    .progress-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .progress-bar-container {
+      height: 8px; background: var(--bg-primary); border-radius: 4px;
+      overflow: hidden; margin: 12px 0;
+    }
+    .progress-bar {
+      height: 100%; background: linear-gradient(90deg, var(--accent), var(--blue));
+      border-radius: 4px; transition: width 0.5s; width: 0%;
+    }
+    .progress-text { font-size: 13px; color: var(--text-secondary); text-align: center; }
+    .progress-title { font-size: 14px; font-weight: 600; }
+
+    .hidden { display: none !important; }
+    .count-badge {
+      background: var(--accent-glow); border: 1px solid var(--accent-border);
+      color: var(--accent); padding: 2px 10px; border-radius: 12px;
+      font-size: 12px; font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📤 Benchmark Data Upload</h1>
+  <div class="subtitle">Upload up to 50 audio files → AI processes each with 3Prescription prompt → results appear on benchmarking page</div>
+</div>
+
+<div class="container">
+  <input type="file" id="fileInput" accept="audio/*" multiple style="display:none">
+
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">🎤</div>
+    <div class="title">Drop audio files here or click to browse</div>
+    <div class="hint">Supports: MP3, M4A, WAV, OGG, WEBM · Max 50 files · Max 100MB each</div>
+  </div>
+
+  <div class="file-list hidden" id="fileList"></div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="uploadBtn" disabled onclick="startUpload()">
+      Upload & Process with AI
+    </button>
+    <button class="btn btn-secondary hidden" id="clearBtn" onclick="clearFiles()">Clear All</button>
+  </div>
+
+  <div class="progress-section" id="progressSection">
+    <div class="progress-title" id="progressTitle">Uploading...</div>
+    <div class="progress-bar-container"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="progress-text" id="progressText">0 / 0</div>
+  </div>
+</div>
+
+<script>
+let selectedFiles = [];
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileList = document.getElementById('fileList');
+const uploadBtn = document.getElementById('uploadBtn');
+const clearBtn = document.getElementById('clearBtn');
+const progressSection = document.getElementById('progressSection');
+
+// Drag and drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => { addFiles(Array.from(fileInput.files)); fileInput.value = ''; });
+
+function addFiles(files) {
+  const audioFiles = files.filter(f => f.type.startsWith('audio/'));
+  const remaining = 50 - selectedFiles.length;
+  const toAdd = audioFiles.slice(0, remaining);
+  selectedFiles.push(...toAdd);
+  renderFileList();
+}
+
+function removeFile(idx) {
+  selectedFiles.splice(idx, 1);
+  renderFileList();
+}
+
+function clearFiles() {
+  selectedFiles = [];
+  renderFileList();
+}
+
+function renderFileList() {
+  if (selectedFiles.length === 0) {
+    fileList.classList.add('hidden');
+    clearBtn.classList.add('hidden');
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Upload & Process with AI';
+    return;
+  }
+
+  fileList.classList.remove('hidden');
+  clearBtn.classList.remove('hidden');
+  uploadBtn.disabled = false;
+  uploadBtn.textContent = `Upload ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} & Process`;
+
+  fileList.innerHTML = selectedFiles.map((f, i) => `
+    <div class="file-item">
+      <div class="num">${i + 1}</div>
+      <div class="name">${escapeHtml(f.name)}</div>
+      <div class="size">${(f.size / (1024*1024)).toFixed(1)} MB</div>
+      <button class="remove-btn" onclick="removeFile(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+async function startUpload() {
+  if (selectedFiles.length === 0) return;
+
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading...';
+  dropZone.classList.add('hidden');
+  clearBtn.classList.add('hidden');
+  progressSection.style.display = 'block';
+
+  const formData = new FormData();
+  for (const f of selectedFiles) {
+    formData.append('audios', f);
+  }
+
+  try {
+    document.getElementById('progressTitle').textContent = 'Uploading files to server...';
+    document.getElementById('progressText').textContent = `Uploading ${selectedFiles.length} files...`;
+    document.getElementById('progressBar').style.width = '10%';
+
+    const res = await fetch('/api/benchmarkdata/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      alert('Upload failed: ' + (data.error || 'Unknown error'));
+      uploadBtn.disabled = false;
+      uploadBtn.textContent = 'Retry Upload';
+      return;
+    }
+
+    document.getElementById('progressTitle').textContent = 'Processing with AI...';
+    document.getElementById('progressBar').style.width = '30%';
+    document.getElementById('progressText').textContent = `${data.total} files uploaded. AI is processing each audio...`;
+
+    // Poll for status
+    pollStatus(data.total);
+  } catch (err) {
+    alert('Upload error: ' + err.message);
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Retry Upload';
+  }
+}
+
+async function pollStatus(total) {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/benchmarkdata/status');
+      const data = await res.json();
+      if (!data.success) return;
+
+      const {completed, pending, errors} = data.data;
+      const pct = Math.round(30 + ((completed + errors) / total) * 70);
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('progressText').textContent =
+        `Completed: ${completed} / ${total}` + (errors > 0 ? ` · Errors: ${errors}` : '') + (pending > 0 ? ` · Processing: ${pending}` : '');
+
+      if (pending === 0) {
+        clearInterval(interval);
+        document.getElementById('progressTitle').textContent = '✅ All done!';
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('progressText').innerHTML =
+          `${completed} cases processed successfully.` + (errors > 0 ? ` ${errors} failed.` : '') +
+          `<br><br><a href="/verify/doctor/benchmarking/" style="color:var(--accent);font-weight:600;">→ View on Benchmarking Page</a>`;
+        selectedFiles = [];
+        renderFileList();
+      }
+    } catch (e) {
+      console.error('Poll error:', e);
+    }
+  }, 3000);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

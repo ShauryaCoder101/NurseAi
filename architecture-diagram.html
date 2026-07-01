@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NurseAI — System Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-2: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e4e4ed;
+      --text-muted: #8888a0;
+      --accent-blue: #4f8fff;
+      --accent-cyan: #22d3ee;
+      --accent-purple: #a78bfa;
+      --accent-green: #34d399;
+      --accent-orange: #f59e0b;
+      --accent-rose: #f472b6;
+      --accent-red: #ef4444;
+      --glow-blue: rgba(79, 143, 255, 0.15);
+      --glow-purple: rgba(167, 139, 250, 0.15);
+      --glow-green: rgba(52, 211, 153, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated Background ─────────────────────────── */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79, 143, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79, 143, 255, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      z-index: 0;
+    }
+    .bg-glow {
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      filter: blur(160px);
+      opacity: 0.4;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .bg-glow.g1 { top: -200px; left: -100px; background: var(--glow-blue); }
+    .bg-glow.g2 { bottom: -200px; right: -100px; background: var(--glow-purple); }
+    .bg-glow.g3 { top: 40%; left: 50%; transform: translateX(-50%); background: var(--glow-green); opacity: 0.2; }
+
+    /* ── Header ───────────────────────────────────────── */
+    header {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      padding: 60px 20px 20px;
+    }
+    header .badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 100px;
+      background: rgba(79, 143, 255, 0.1);
+      border: 1px solid rgba(79, 143, 255, 0.25);
+      color: var(--accent-blue);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, var(--accent-blue) 50%, var(--accent-purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+    }
+    header p {
+      color: var(--text-muted);
+      font-size: 16px;
+      margin-top: 12px;
+      max-width: 700px;
+      margin-inline: auto;
+      line-height: 1.6;
+    }
+
+    /* ── Container ─────────────────────────────────────── */
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ── Section title ─────────────────────────────────── */
+    .section-title {
+      text-align: center;
+      margin: 50px 0 30px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .section-title span {
+      display: inline-block;
+      padding: 8px 20px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    /* ── Three-Node Row ───────────────────────────────── */
+    .nodes-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 900px) {
+      .nodes-row { grid-template-columns: 1fr; }
+    }
+
+    .node-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+    }
+    .node-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-blue);
+      box-shadow: 0 8px 40px rgba(79, 143, 255, 0.1);
+    }
+    .node-card .glow-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 16px 16px 0 0;
+    }
+    .node-card.mobile .glow-bar { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue)); }
+    .node-card.backend .glow-bar { background: linear-gradient(90deg, var(--accent-purple), var(--accent-rose)); }
+    .node-card.ai .glow-bar { background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan)); }
+
+    .node-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      margin-bottom: 16px;
+    }
+    .node-card.mobile .node-icon { background: rgba(34, 211, 238, 0.1); }
+    .node-card.backend .node-icon { background: rgba(167, 139, 250, 0.1); }
+    .node-card.ai .node-icon { background: rgba(52, 211, 153, 0.1); }
+
+    .node-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .node-card .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      font-weight: 500;
+    }
+    .node-card .features {
+      list-style: none;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .node-card .features li {
+      color: var(--text-muted);
+      position: relative;
+      padding-left: 18px;
+    }
+    .node-card .features li::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 9px;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .node-card.mobile .features li::before { background: var(--accent-cyan); }
+    .node-card.backend .features li::before { background: var(--accent-purple); }
+    .node-card.ai .features li::before { background: var(--accent-green); }
+
+    /* ── Arrow connector ──────────────────────────────── */
+    .connector {
+      text-align: center;
+      margin: 8px 0;
+      position: relative;
+    }
+    .connector .arrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 20px;
+      border-radius: 100px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .connector .arrow svg {
+      width: 16px; height: 16px;
+      fill: none;
+      stroke: var(--accent-blue);
+      stroke-width: 2;
+    }
+
+    /* ── Pipeline Flow ────────────────────────────────── */
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 10px 0 40px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+    .pipeline-step {
+      flex: 1;
+      min-width: 180px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .pipeline-step .step-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px;
+      flex: 1;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .pipeline-step:hover .step-content {
+      border-color: var(--accent-purple);
+      box-shadow: 0 4px 24px rgba(167, 139, 250, 0.08);
+    }
+    .pipeline-step .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 10px;
+    }
+    .pipeline-step h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .pipeline-step p {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      flex-shrink: 0;
+      color: var(--accent-blue);
+      font-size: 18px;
+      opacity: 0.5;
+    }
+    @media (max-width: 900px) {
+      .pipeline { flex-direction: column; align-items: center; }
+      .pipeline-arrow { transform: rotate(90deg); width: auto; padding: 8px; }
+    }
+
+    /* ── Feature Grid ─────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      margin-bottom: 50px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 20px;
+      transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+    }
+    .feature-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-green);
+      box-shadow: 0 6px 30px rgba(52, 211, 153, 0.08);
+    }
+    .feature-card .icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      margin-bottom: 14px;
+    }
+    .feature-card h4 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .feature-card .tag {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Benchmarking Section ──────────────────────────── */
+    .bench-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 50px;
+    }
+    .bench-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .bench-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-orange);
+    }
+    .bench-card .model-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .bench-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .bench-card p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Tech Stack Footer ────────────────────────────── */
+    .tech-stack {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px 20px 60px;
+    }
+    .tech-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: border-color 0.2s;
+    }
+    .tech-pill:hover {
+      border-color: var(--accent-blue);
+      color: var(--text);
+    }
+    .tech-pill .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+
+    /* ── Data Flow Diagram ─────────────────────────────── */
+    .data-flow {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 24px;
+      margin-bottom: 50px;
+      position: relative;
+      overflow: hidden;
+    }
+    .data-flow::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple), var(--accent-green));
+    }
+    .data-flow h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .flow-lanes {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+    }
+    .flow-lane {
+      flex: 1;
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+    }
+    .flow-lane h5 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .flow-lane.nurse-lane { background: rgba(34, 211, 238, 0.04); }
+    .flow-lane.nurse-lane h5 { color: var(--accent-cyan); }
+    .flow-lane.server-lane { background: rgba(167, 139, 250, 0.04); }
+    .flow-lane.server-lane h5 { color: var(--accent-purple); }
+    .flow-lane.ai-lane { background: rgba(52, 211, 153, 0.04); }
+    .flow-lane.ai-lane h5 { color: var(--accent-green); }
+    .flow-item {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .flow-item .fi-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 900px) {
+      .flow-lanes { flex-direction: column; }
+    }
+
+    /* ── Safety guardrails callout ─────────────────────── */
+    .guardrails-callout {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(245, 158, 11, 0.06));
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 50px;
+    }
+    .guardrails-callout h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent-orange);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .guardrail-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .guardrail-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .guardrail-item .gi-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+      font-size: 14px;
+    }
+    .guardrail-item strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow g1"></div>
+<div class="bg-glow g2"></div>
+<div class="bg-glow g3"></div>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header>
+  <div class="badge">Architecture Overview</div>
+  <h1>NurseAI</h1>
+  <p>AI-powered Clinical Decision Support System for frontline healthcare in rural West Bengal — built on a 3-node architecture with multi-model AI consensus.</p>
+</header>
+
+<div class="container">
+
+  <!-- ═══════════════════ 3-NODE ARCHITECTURE ═══════════════════ -->
+  <div class="section-title"><span>🏗 Three-Node Architecture</span></div>
+
+  <div class="nodes-row">
+
+    <!-- NODE 1: Mobile App -->
+    <div class="node-card mobile">
+      <div class="glow-bar"></div>
+      <div class="node-icon">📱</div>
+      <h3>Node 1 — Mobile App</h3>
+      <div class="subtitle">React Native (Expo) • Android</div>
+      <ul class="features">
+        <li>Voice recording of patient interviews</li>
+        <li>Multi-segment audio capture (dual-audio)</li>
+        <li>Patient registration &amp; ID management</li>
+        <li>Real-time AI clinical suggestions</li>
+        <li>Follow-up Q&amp;A with AI</li>
+        <li>Missing vitals data input</li>
+        <li>Patient history timeline view</li>
+        <li>OTP-based nurse authentication</li>
+        <li>Offline-first with smart retry queues</li>
+      </ul>
+    </div>
+
+    <!-- NODE 2: Backend Server -->
+    <div class="node-card backend">
+      <div class="glow-bar"></div>
+      <div class="node-icon">⚙️</div>
+      <h3>Node 2 — Backend Server</h3>
+      <div class="subtitle">Node.js (Express) • AWS Elastic Beanstalk</div>
+      <ul class="features">
+        <li>RESTful API with JWT authentication</li>
+        <li>3-stage AI pipeline orchestrator</li>
+        <li>Multi-LLM consensus engine (NLP merge)</li>
+        <li>Rate limiting &amp; exponential backoff</li>
+        <li>Audio file handling (Supabase Storage)</li>
+        <li>Longitudinal patient data aggregation</li>
+        <li>AI reasoning audit trail logging</li>
+        <li>Doctor verification portal (SSR)</li>
+        <li>Benchmarking data pipeline</li>
+        <li>Auto-generated patient HTML records</li>
+      </ul>
+    </div>
+
+    <!-- NODE 3: AI Engine -->
+    <div class="node-card ai">
+      <div class="glow-bar"></div>
+      <div class="node-icon">🧠</div>
+      <h3>Node 3 — AI Engine</h3>
+      <div class="subtitle">Gemini 3.1 Pro • Multi-Model Fleet</div>
+      <ul class="features">
+        <li>Direct audio-to-clinical-output (no ASR)</li>
+        <li>3-stage clinical prompting system</li>
+        <li>RAG grounded on textbook &amp; STG knowledge</li>
+        <li>Structured reasoning extraction (XAI)</li>
+        <li>Longitudinal history context injection</li>
+        <li>Automatic model fallback (3.1 → 2.5 Pro → Flash)</li>
+        <li>Multi-model benchmarking (GPT-4o, Grok-3, Claude, DeepSeek)</li>
+        <li>Bilingual output (English + Bengali)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ 3-STAGE CLINICAL PIPELINE ═══════════════════ -->
+  <div class="section-title"><span>🔄 Three-Stage Clinical AI Pipeline</span></div>
+
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="step-content">
+        <div class="step-num">1</div>
+        <h4>1Proforma</h4>
+        <p>Audio → structured clinical extraction. Demographics, vitals, chief complaint, HPI narrative, and a differential calibration table — all from voice input.</p>
+      </div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="step-content">
+        <div class="step-num">2</div>
+        <h4>2Diagnosis</h4>
+        <p>Syndrome-based clustering, prioritised differentials by local prevalence, clarifying questions with Bengali translations, and targeted physical exam recommendations.</p>
+      </div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="step-content">
+        <div class="step-num">3</div>
+        <h4>3Prescription</h4>
+        <p>Tiered management plan: Tier 1 &amp; 2 diagnostics, medications with dosage, safety netting with return precautions, and bilingual patient education in Bengali.</p>
+      </div>
+    </div>
+    <div class="pipeline-arrow">→</div>
+    <div class="pipeline-step">
+      <div class="step-content">
+        <div class="step-num" style="background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));">✓</div>
+        <h4>Doctor Review</h4>
+        <p>Verified physician reviews AI output, evaluates diagnosis accuracy, assigns verification status, and provides expert feedback — closing the human-in-the-loop.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ DATA FLOW DIAGRAM ═══════════════════ -->
+  <div class="data-flow">
+    <h3>End-to-End Data Flow</h3>
+    <div class="flow-lanes">
+      <div class="flow-lane nurse-lane">
+        <h5>📱 Nurse (Field)</h5>
+        <div class="flow-item"><span class="fi-icon">🎙️</span> Record patient interview</div>
+        <div class="flow-item"><span class="fi-icon">📋</span> Enter patient ID &amp; vitals</div>
+        <div class="flow-item"><span class="fi-icon">📤</span> Upload audio to server</div>
+        <div class="flow-item"><span class="fi-icon">👀</span> View AI diagnosis in real-time</div>
+        <div class="flow-item"><span class="fi-icon">🎙️</span> Record answers to clarifying Qs</div>
+        <div class="flow-item"><span class="fi-icon">💊</span> Receive final prescription</div>
+        <div class="flow-item"><span class="fi-icon">💬</span> Follow-up Q&amp;A with AI</div>
+      </div>
+      <div class="flow-lane server-lane">
+        <h5>⚙️ Backend (AWS EB)</h5>
+        <div class="flow-item"><span class="fi-icon">🔐</span> JWT auth + rate limiting</div>
+        <div class="flow-item"><span class="fi-icon">💾</span> Store audio (Supabase / local)</div>
+        <div class="flow-item"><span class="fi-icon">📚</span> Fetch longitudinal patient history</div>
+        <div class="flow-item"><span class="fi-icon">🔀</span> Orchestrate 3-stage pipeline</div>
+        <div class="flow-item"><span class="fi-icon">📝</span> Save transcripts + reasoning logs</div>
+        <div class="flow-item"><span class="fi-icon">📄</span> Generate patient HTML records</div>
+        <div class="flow-item"><span class="fi-icon">📊</span> Run benchmarking evaluations</div>
+      </div>
+      <div class="flow-lane ai-lane">
+        <h5>🧠 AI Engine</h5>
+        <div class="flow-item"><span class="fi-icon">🔊</span> Process raw audio (no ASR needed)</div>
+        <div class="flow-item"><span class="fi-icon">📖</span> RAG: ground on STG/ICMR/WHO data</div>
+        <div class="flow-item"><span class="fi-icon">🏥</span> Apply clinical prompts (stage 1→2→3)</div>
+        <div class="flow-item"><span class="fi-icon">🔗</span> Inject longitudinal history context</div>
+        <div class="flow-item"><span class="fi-icon">🛡️</span> Guardrails: validate against guidelines</div>
+        <div class="flow-item"><span class="fi-icon">🧾</span> Extract structured reasoning (XAI)</div>
+        <div class="flow-item"><span class="fi-icon">🌐</span> Output in English + Bengali</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ GUARDRAILS ═══════════════════ -->
+  <div class="guardrails-callout">
+    <h3>🛡️ AI Safety Guardrails — Reducing Hallucinations</h3>
+    <div class="guardrail-list">
+      <div class="guardrail-item">
+        <span class="gi-icon">📖</span>
+        <div><strong>RAG: Textbook-Grounded Knowledge</strong> — Prompts mandate verification against STGs (NHM, ICMR, WHO, WBHFW) before any recommendation. Search-and-Extract protocol requires source attribution.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">🚫</span>
+        <div><strong>Zero-Tolerance Rule</strong> — If search results are vague or dosage not found, the AI must state "consult a supervising doctor" rather than hallucinate a value.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">🔍</span>
+        <div><strong>Ghost Citation Prohibition</strong> — AI cannot reference any guideline (e.g., "Per WBHFW…") unless actively retrieved and verified in the current session.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">🗳️</span>
+        <div><strong>Multi-Model Consensus (NLP Merge)</strong> — 3 independent LLMs generate responses; entity-level semantic deduplication + majority voting ensures only 2/3 agreement passes.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">📊</span>
+        <div><strong>Source Validation Footer</strong> — Every prescription output includes a mandatory footer: Guideline Used, Last Verified Date, and Confidence Level (High/Medium/Low).</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">👨‍⚕️</span>
+        <div><strong>Human-in-the-Loop</strong> — Doctor verification portal enables expert review of every AI output. Flagging system for suspect outputs with mandatory re-evaluation.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">🧾</span>
+        <div><strong>Explainable AI (XAI) Audit</strong> — Every response includes structured reasoning logs: input summary → step-by-step clinical rationale → output summary, stored for review.</div>
+      </div>
+      <div class="guardrail-item">
+        <span class="gi-icon">📋</span>
+        <div><strong>Longitudinal Context Injection</strong> — Full patient visit history is injected into every AI call, preventing contradictory or duplicative recommendations across visits.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ KEY FEATURES ═══════════════════ -->
+  <div class="section-title"><span>✨ Key System Features</span></div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(34, 211, 238, 0.1);">📖</div>
+      <h4>RAG — Textbook Knowledge Base</h4>
+      <p>Retrieval-Augmented Generation grounded on GoI Standard Treatment Guidelines, ICMR protocols, WHO guidelines, and West Bengal state health directives. Every recommendation is evidence-anchored.</p>
+      <span class="tag" style="background: rgba(34, 211, 238, 0.1); color: var(--accent-cyan);">Knowledge Layer</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(167, 139, 250, 0.1);">📚</div>
+      <h4>Longitudinal Patient Memory</h4>
+      <p>Every past visit — diagnosis, prescription, follow-up — is aggregated into a chronological patient history and injected as context for every new AI call. The system remembers.</p>
+      <span class="tag" style="background: rgba(167, 139, 250, 0.1); color: var(--accent-purple);">Patient Context</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(52, 211, 153, 0.1);">🗳️</div>
+      <h4>Multi-Model Consensus Engine</h4>
+      <p>NLP Merge Pipeline: 3 LLMs independently generate clinical output → entity extraction → semantic deduplication → majority voting → synthesized consensus response.</p>
+      <span class="tag" style="background: rgba(52, 211, 153, 0.1); color: var(--accent-green);">Safety Layer</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(244, 114, 182, 0.1);">🧾</div>
+      <h4>Explainable AI (XAI)</h4>
+      <p>Structured reasoning extraction with step-by-step clinical rationale. Each AI decision is decomposed into: input → reasoning steps → conclusion, stored for audit.</p>
+      <span class="tag" style="background: rgba(244, 114, 182, 0.1); color: var(--accent-rose);">Transparency</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(245, 158, 11, 0.1);">🔊</div>
+      <h4>Direct Audio Processing</h4>
+      <p>Gemini processes raw audio natively — no separate ASR/STT step. This reduces error propagation from transcription mistakes and captures tonal/contextual nuances.</p>
+      <span class="tag" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-orange);">Innovation</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(79, 143, 255, 0.1);">🌐</div>
+      <h4>Bilingual Clinical Output</h4>
+      <p>English for clinical sections, Bengali vernacular for patient education. Includes colloquial symptom descriptors (e.g., "Buk-e-bhaar" for chest heaviness) for local accessibility.</p>
+      <span class="tag" style="background: rgba(79, 143, 255, 0.1); color: var(--accent-blue);">Accessibility</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(239, 68, 68, 0.1);">🚨</div>
+      <h4>Triage & Red Flag Detection</h4>
+      <p>Automatic identification of life-threatening conditions requiring immediate "Stabilize and Transfer." Contextualised to West Bengal endemics: Malaria, Dengue, Scrub Typhus, JE.</p>
+      <span class="tag" style="background: rgba(239, 68, 68, 0.1); color: var(--accent-red);">Patient Safety</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(34, 211, 238, 0.1);">👨‍⚕️</div>
+      <h4>Doctor Verification Portal</h4>
+      <p>Server-rendered web portal for supervising physicians to review AI outputs, verify diagnoses, grade prescription quality, and provide expert feedback with verification stamps.</p>
+      <span class="tag" style="background: rgba(34, 211, 238, 0.1); color: var(--accent-cyan);">Quality Assurance</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon" style="background: rgba(167, 139, 250, 0.1);">📄</div>
+      <h4>Auto-Generated Patient Records</h4>
+      <p>Dynamic HTML patient records auto-generated after every visit — combining demographics, vitals, AI outputs, doctor verifications, and follow-up history into printable reports.</p>
+      <span class="tag" style="background: rgba(167, 139, 250, 0.1); color: var(--accent-purple);">Documentation</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ BENCHMARKING ═══════════════════ -->
+  <div class="section-title"><span>📊 AI Benchmarking — Multi-Model Evaluation</span></div>
+
+  <div class="bench-row">
+    <div class="bench-card">
+      <div class="model-icon">💎</div>
+      <h4>Gemini 3.1 Pro</h4>
+      <p>Primary model • Direct audio</p>
+    </div>
+    <div class="bench-card">
+      <div class="model-icon">🟢</div>
+      <h4>GPT-4o</h4>
+      <p>OpenAI flagship • Audio support</p>
+    </div>
+    <div class="bench-card">
+      <div class="model-icon">🔵</div>
+      <h4>Grok-3</h4>
+      <p>xAI flagship • Audio URL</p>
+    </div>
+    <div class="bench-card">
+      <div class="model-icon">🟤</div>
+      <h4>Claude Sonnet 4</h4>
+      <p>Anthropic • Text mode</p>
+    </div>
+    <div class="bench-card">
+      <div class="model-icon">🟣</div>
+      <h4>DeepSeek V3</h4>
+      <p>DeepSeek • Text mode</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ TECH STACK ═══════════════════ -->
+  <div class="section-title"><span>🛠 Technology Stack</span></div>
+
+  <div class="tech-stack">
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-cyan);"></span>React Native (Expo)</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-purple);"></span>Node.js + Express</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-green);"></span>Gemini 3.1 Pro API</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-orange);"></span>PostgreSQL</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-blue);"></span>AWS Elastic Beanstalk</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-rose);"></span>Supabase Storage</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-red);"></span>Firebase Auth</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-cyan);"></span>JWT Authentication</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-purple);"></span>OpenAI API</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-green);"></span>Anthropic API</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-orange);"></span>xAI Grok API</div>
+    <div class="tech-pill"><span class="dot" style="background: var(--accent-blue);"></span>DeepSeek API</div>
+  </div>
+
+</div>
+
+</body>
+</html>

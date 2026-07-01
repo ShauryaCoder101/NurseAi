@@ -224,8 +224,14 @@ async function getBenchmarkPromptText(req, res) {
 }
 
 async function resolvePlaybackUrl(audioRecord) {
-  if (audioRecord?.storage_path && isStorageConfigured()) {
-    const signedUrl = await createSignedAudioUrl(audioRecord.storage_path, 600);
+  let storagePath = audioRecord?.storage_path;
+  // Reconstruct storage_path if missing but we have id + file_name
+  if (!storagePath && audioRecord?.id && audioRecord?.file_name) {
+    const safeName = String(audioRecord.file_name).replace(/\\/g, '/');
+    storagePath = `audio_records/${audioRecord.id}/${safeName}`;
+  }
+  if (storagePath && isStorageConfigured()) {
+    const signedUrl = await createSignedAudioUrl(storagePath, 600);
     if (signedUrl) return signedUrl;
   }
   if (audioRecord?.file_url) {

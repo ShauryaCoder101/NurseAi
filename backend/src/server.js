@@ -62,10 +62,25 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/benchmark', express.static(path.join(__dirname, 'public/benchmark')));
+app.use('/metrics', express.static(path.join(__dirname, '../public/metrics')));
+app.use('/benchmarkdata', express.static(path.join(__dirname, '../public/benchmarkdata')));
+app.use('/verify/doctor/benchmarking', express.static(path.join(__dirname, '../public/doctor-benchmarking')));
 app.use('/verify/doctor', express.static(path.join(__dirname, '../public/doctor')));
 app.use('/', express.static(path.join(__dirname, 'public/site')));
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      mediaSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
+    },
+  },
+}));
 app.use(cors(corsOptions)); // Enable CORS for frontend
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({extended: true})); // Parse URL-encoded bodies
@@ -87,6 +102,15 @@ app.use('/api/audio', audioRoutes);
 app.use('/api/benchmark', benchmarkRoutes);
 app.use('/api/patient-record', patientRecordRoutes);
 app.use('/api/doctor', doctorRoutes);
+
+// Public metrics API (no auth)
+const dashboardMetrics = require('./controllers/dashboardMetricsController');
+app.get('/api/metrics', dashboardMetrics.getPublicMetrics);
+
+// Benchmark data upload API (no auth)
+const benchmarkData = require('./controllers/benchmarkDataController');
+app.post('/api/benchmarkdata/upload', benchmarkData.upload.array('audios', 50), benchmarkData.uploadBenchmarkData);
+app.get('/api/benchmarkdata/status', benchmarkData.getBenchmarkStatus);
 
 // 404 handler
 app.use((req, res) => {

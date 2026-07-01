@@ -274,6 +274,26 @@ async function uploadAudio(req, res) {
     });
 
     if (audio2File) {
+      // Save audio2 to Supabase before cleaning up locally
+      if (isStorageConfigured()) {
+        try {
+          const audio2Result = await uploadAudioFile({
+            filePath: audio2File.path.replace(/\\/g, '/'),
+            fileName: `audio2_${audio2File.originalname}`,
+            recordId: result.lastID,
+            mimeType: audio2File.mimetype || 'audio/mp4',
+          });
+          if (audio2Result) {
+            console.log(`Audio2 saved to Supabase: ${audio2Result.storagePath}`);
+            await dbHelpers.run(
+              'UPDATE audio_records SET audio2_storage_path = $1 WHERE id = $2',
+              [audio2Result.storagePath, result.lastID]
+            );
+          }
+        } catch (upload2Error) {
+          console.error('Supabase audio2 upload failed:', upload2Error);
+        }
+      }
       try { fs.unlinkSync(audio2File.path); } catch (_) {}
     }
   } catch (error) {
@@ -404,6 +424,8 @@ async function retryGeminiForAudioRecord(req, res) {
 
 async function finalizePrescription(req, res) {
   let answerAudioPath = null;
+  let answerMimeType = 'audio/mp4';
+  let audioRecord = null;
   try {
     const userUid = req.userId;
     const {id} = req.params;
@@ -417,9 +439,9 @@ async function finalizePrescription(req, res) {
     }
 
     answerAudioPath = answerFile.path.replace(/\\/g, '/');
-    const answerMimeType = answerFile.mimetype || 'audio/mp4';
+    answerMimeType = answerFile.mimetype || 'audio/mp4';
 
-    const audioRecord = await dbHelpers.get(
+    audioRecord = await dbHelpers.get(
       'SELECT * FROM audio_records WHERE id = $1 AND user_uid = $2',
       [id, userUid]
     );
@@ -536,7 +558,89 @@ async function finalizePrescription(req, res) {
       error: 'Internal server error.',
     });
   } finally {
-    if (answerAudioPath) {
+    if (answerAudioPath && audioRecord) {
+      // Save answerAudio (Phase 3) to Supabase before cleaning up locally
+      if (isStorageConfigured()) {
+        try {
+          const answerResult = await uploadAudioFile({
+            filePath: answerAudioPath,
+            fileName: `answer_${path.basename(answerAudioPath)}`,
+            recordId: audioRecord.id,
+            mimeType: answerMimeType || 'audio/mp4',
+          });
+          if (answerResult) {
+            console.log(`Answer audio saved to Supabase: ${answerResult.storagePath}`);
+            await dbHelpers.run(
+              'UPDATE audio_records SET answer_audio_storage_path = $1 WHERE id = $2',
+              [answerResult.storagePath, audioRecord.id]
+            );
+          }
+        } catch (ansUploadError) {
+          console.error('Supabase answer audio upload failed:', ansUploadError);
+        }
+
+        // Chain all audios into full_audio
+        try {
+          const {createSignedAudioUrl} = require('../services/supabaseStorage');
+          const parts = [];
+          // Part 1: original audio (Phase 1)
+          const mainPath = audioRecord.storage_path;
+          if (mainPath) {
+            const url1 = await createSignedAudioUrl(mainPath, 300);
+            if (url1) {
+              const resp1 = await fetch(url1);
+              if (resp1.ok) parts.push(Buffer.from(await resp1.arrayBuffer()));
+            }
+          }
+          // Part 2: audio2 (Phase 1 second mic, if exists)
+          const audio2Path = audioRecord.audio2_storage_path;
+          if (audio2Path) {
+            const url2 = await createSignedAudioUrl(audio2Path, 300);
+            if (url2) {
+              const resp2 = await fetch(url2);
+              if (resp2.ok) parts.push(Buffer.from(await resp2.arrayBuffer()));
+            }
+          }
+          // Part 3: answer audio (Phase 3 — just uploaded)
+          const freshRecord = await dbHelpers.get(
+            'SELECT answer_audio_storage_path FROM audio_records WHERE id = $1',
+            [audioRecord.id]
+          );
+          if (freshRecord?.answer_audio_storage_path) {
+            const url3 = await createSignedAudioUrl(freshRecord.answer_audio_storage_path, 300);
+            if (url3) {
+              const resp3 = await fetch(url3);
+              if (resp3.ok) parts.push(Buffer.from(await resp3.arrayBuffer()));
+            }
+          }
+
+          if (parts.length > 1) {
+            const combined = Buffer.concat(parts);
+            const tempCombined = path.join(AUDIO_UPLOAD_DIR, `full_${audioRecord.id}.mp3`);
+            fs.writeFileSync(tempCombined, combined);
+            const fullResult = await uploadAudioFile({
+              filePath: tempCombined,
+              fileName: 'full_audio.mp3',
+              recordId: audioRecord.id,
+              mimeType: 'audio/mpeg',
+            });
+            if (fullResult) {
+              await dbHelpers.run(
+                'UPDATE audio_records SET full_audio_storage_path = $1 WHERE id = $2',
+                [fullResult.storagePath, audioRecord.id]
+              );
+              console.log(`Full chained audio saved: ${fullResult.storagePath} (${parts.length} parts, ${combined.length} bytes)`);
+            }
+            try { fs.unlinkSync(tempCombined); } catch (_) {}
+          } else {
+            console.log(`Skipping chain — only ${parts.length} audio part(s) available`);
+          }
+        } catch (chainError) {
+          console.error('Audio chaining error:', chainError);
+        }
+      }
+      try { fs.unlinkSync(answerAudioPath); } catch (_) {}
+    } else if (answerAudioPath) {
       try { fs.unlinkSync(answerAudioPath); } catch (_) {}
     }
   }
@@ -544,7 +648,10 @@ async function finalizePrescription(req, res) {
 
 async function extractProforma(req, res) {
   let tempAudioPath = null;
+  let userUid = null;
+  let patientId = null;
   try {
+    userUid = req.userId;
     const audioFile = req.file;
     if (!audioFile) {
       return res.status(400).json({
@@ -555,7 +662,7 @@ async function extractProforma(req, res) {
 
     tempAudioPath = audioFile.path.replace(/\\/g, '/');
     const mimeType = audioFile.mimetype || 'audio/mp4';
-    const patientId = req.body?.patientId || 'Unknown';
+    patientId = req.body?.patientId || 'Unknown';
 
     console.log(`Extract proforma: size=${audioFile.size}, mime=${mimeType}, patient=${patientId}`);
 
@@ -589,6 +696,44 @@ async function extractProforma(req, res) {
       error: 'Internal server error.',
     });
   } finally {
+    // Save Phase 2 audio to Supabase before deleting locally
+    if (tempAudioPath && userUid && isStorageConfigured()) {
+      try {
+        // Find the most recent audio_record for this user (and patient if available)
+        let audioRecord;
+        if (patientId && patientId !== 'Unknown') {
+          audioRecord = await dbHelpers.get(
+            'SELECT id FROM audio_records WHERE user_uid = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 1',
+            [userUid, patientId]
+          );
+        }
+        if (!audioRecord) {
+          audioRecord = await dbHelpers.get(
+            'SELECT id FROM audio_records WHERE user_uid = $1 ORDER BY created_at DESC LIMIT 1',
+            [userUid]
+          );
+        }
+        if (audioRecord) {
+          const proformaResult = await uploadAudioFile({
+            filePath: tempAudioPath,
+            fileName: `proforma_${path.basename(tempAudioPath)}`,
+            recordId: audioRecord.id,
+            mimeType: 'audio/mp4',
+          });
+          if (proformaResult) {
+            await dbHelpers.run(
+              'UPDATE audio_records SET proforma_audio_storage_path = $1 WHERE id = $2',
+              [proformaResult.storagePath, audioRecord.id]
+            );
+            console.log(`Phase 2 proforma audio saved: ${proformaResult.storagePath}`);
+          }
+        } else {
+          console.log('Phase 2 audio: no matching audio_record found, skipping save');
+        }
+      } catch (saveErr) {
+        console.error('Phase 2 audio save error:', saveErr.message);
+      }
+    }
     if (tempAudioPath) {
       try { fs.unlinkSync(tempAudioPath); } catch (_) {}
     }

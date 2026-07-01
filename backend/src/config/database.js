@@ -411,6 +411,63 @@ async function initializeDatabase() {
       )
     `);
 
+    // Advanced benchmark results table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS benchmark_results (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        audio_record_id UUID NOT NULL,
+        benchmark_type VARCHAR(50) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        result JSONB,
+        score NUMERIC(5,2),
+        error_message TEXT,
+        run_id UUID,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `);
+    // Drop FK if it exists (audio_record_id can now reference bench_records too)
+    await client.query(`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'benchmark_results_audio_record_id_fkey' AND table_name = 'benchmark_results') THEN
+          ALTER TABLE benchmark_results DROP CONSTRAINT benchmark_results_audio_record_id_fkey;
+        END IF;
+      END $$;
+    `);
+
+    // Benchmark runs table (tracks async job progress)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS benchmark_runs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        status VARCHAR(20) DEFAULT 'pending',
+        total_audios INT DEFAULT 0,
+        completed_audios INT DEFAULT 0,
+        current_benchmark VARCHAR(50),
+        current_audio_name VARCHAR(255),
+        error_message TEXT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `);
+
+    // bench_llm_results — summary table with per-LLM scores per benchmark type
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bench_llm_results (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        bench_record_id UUID NOT NULL,
+        run_id UUID,
+        file_name VARCHAR(255),
+        patient_name VARCHAR(255),
+        fairness JSONB DEFAULT '{}',
+        appropriateness JSONB DEFAULT '{}',
+        ensemble JSONB DEFAULT '{}',
+        safety JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(bench_record_id, run_id)
+      )
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
@@ -444,6 +501,9 @@ async function initializeDatabase() {
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_followup_log_patient_id ON followup_log(patient_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_benchmark_results_audio ON benchmark_results(audio_record_id, benchmark_type)
     `);
 
     // Data migration: backfill file_url for existing local audio records
@@ -492,6 +552,28 @@ async function initializeDatabase() {
           WHERE table_name = 'audio_records' AND column_name = 'photo_mime'
         ) THEN
           ALTER TABLE audio_records ADD COLUMN photo_mime VARCHAR(100);
+        END IF;
+      END $$;
+    `);
+
+    // Add audio2 and answer audio storage path columns
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'audio_records' AND column_name = 'audio2_storage_path') THEN
+          ALTER TABLE audio_records ADD COLUMN audio2_storage_path TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'audio_records' AND column_name = 'answer_audio_storage_path') THEN
+          ALTER TABLE audio_records ADD COLUMN answer_audio_storage_path TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'audio_records' AND column_name = 'full_audio_storage_path') THEN
+          ALTER TABLE audio_records ADD COLUMN full_audio_storage_path TEXT;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'audio_records' AND column_name = 'proforma_audio_storage_path') THEN
+          ALTER TABLE audio_records ADD COLUMN proforma_audio_storage_path TEXT;
         END IF;
       END $$;
     `);

@@ -1,0 +1,1637 @@
+[
+  {
+    "patientId": "BRD1001",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1002",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1003",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1004",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1005",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1006",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1007",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1008",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1009",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1010",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1011",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1012",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1013",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1014",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1015",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1016",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1017",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1018",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1019",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1020",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1021",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1022",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1023",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1024",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1025",
+    "status": "WOULD_REPLACE",
+    "recordId": "498e8269-091f-4567-8a74-4ea04ff2cf6c",
+    "oldSize": "760167",
+    "newSize": 10577419,
+    "fileName": "BRD1025_NUR.mp3"
+  },
+  {
+    "patientId": "BRD1026",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1027",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1028",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1029",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1030",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1031",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1032",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1033",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1034",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1035",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1036",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1037",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1038",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1039",
+    "status": "WOULD_REPLACE",
+    "recordId": "0298b0b4-cd71-4124-8e9c-349feaa626db",
+    "oldSize": "273206",
+    "newSize": 10675848,
+    "fileName": "BRD1039_NUR.mp3"
+  },
+  {
+    "patientId": "BRD1040",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1041",
+    "status": "WOULD_REPLACE",
+    "recordId": "a9d89260-3e2f-4eb2-93c3-12d3ace42701",
+    "oldSize": "258291",
+    "newSize": 6438369,
+    "fileName": "BRD1041_NUR.mp3"
+  },
+  {
+    "patientId": "BRD1042",
+    "status": "WOULD_REPLACE",
+    "recordId": "82a9bcb4-09a8-42ea-9e58-fe9b471a4613",
+    "oldSize": "274830",
+    "newSize": 9216335,
+    "fileName": "260416_1705.mp3"
+  },
+  {
+    "patientId": "BRD1043",
+    "status": "WOULD_REPLACE",
+    "recordId": "f3a2f2b8-80f6-4f7a-b937-430664ee35e0",
+    "oldSize": "261687",
+    "newSize": 9643280,
+    "fileName": "260430_1705.mp3"
+  },
+  {
+    "patientId": "BRD1044",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1045",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1046",
+    "status": "WOULD_REPLACE",
+    "recordId": "abec0669-b867-44f8-b059-eced3a7bb6bc",
+    "oldSize": "444041",
+    "newSize": 13195515,
+    "fileName": "260514_1555.mp3"
+  },
+  {
+    "patientId": "BRD1047",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1048",
+    "status": "WOULD_REPLACE",
+    "recordId": "657bda1d-c269-4049-b2cd-26e698b8b3c0",
+    "oldSize": "563347",
+    "newSize": 9496576,
+    "fileName": "260519_1736.mp3"
+  },
+  {
+    "patientId": "BRD1049",
+    "status": "WOULD_REPLACE",
+    "recordId": "a8a0d500-350a-45e7-9533-d192124a4d71",
+    "oldSize": "705308",
+    "newSize": 9185615,
+    "fileName": "260519_1825.mp3"
+  },
+  {
+    "patientId": "BRD1050",
+    "status": "WOULD_REPLACE",
+    "recordId": "fde93e95-cedb-4bc1-ba17-4d8c898fe434",
+    "oldSize": "593777",
+    "newSize": 11752302,
+    "fileName": "260519_1750.mp3"
+  },
+  {
+    "patientId": "BRD1051",
+    "status": "WOULD_REPLACE",
+    "recordId": "104d13dd-0bfc-4d8b-9a7a-cc81efbd8823",
+    "oldSize": "433938",
+    "newSize": 13586725,
+    "fileName": "260523_1547.mp3"
+  },
+  {
+    "patientId": "BRD1053",
+    "status": "WOULD_REPLACE",
+    "recordId": "d531e864-6574-424e-ac4b-12215cfc3108",
+    "oldSize": "453333",
+    "newSize": 6849641,
+    "fileName": "260523_1628.mp3"
+  },
+  {
+    "patientId": "BRD1054",
+    "status": "WOULD_REPLACE",
+    "recordId": "65e27c8f-18e6-41ac-b0a8-2ab18a3feadf",
+    "oldSize": "612167",
+    "newSize": 11094643,
+    "fileName": "260523_1617.mp3"
+  },
+  {
+    "patientId": "BRD1055",
+    "status": "WOULD_REPLACE",
+    "recordId": "f3ca4ab1-5e6d-4955-8643-64945efe9871",
+    "oldSize": "881565",
+    "newSize": 13453187,
+    "fileName": "260523_1615.mp3"
+  },
+  {
+    "patientId": "BRD1056",
+    "status": "WOULD_REPLACE",
+    "recordId": "c2f269af-95e3-462d-b8c3-147b223df754",
+    "oldSize": "389863",
+    "newSize": 9204423,
+    "fileName": "260523_1657.mp3"
+  },
+  {
+    "patientId": "BRD1057",
+    "status": "WOULD_REPLACE",
+    "recordId": "18ffde96-b3b8-432b-8c26-996c47019bbe",
+    "oldSize": "508267",
+    "newSize": 10063329,
+    "fileName": "260523_1650.mp3"
+  },
+  {
+    "patientId": "BRD1058",
+    "status": "WOULD_REPLACE",
+    "recordId": "916ed37e-9624-4e7e-a7b1-216a6dcc6aa2",
+    "oldSize": "547729",
+    "newSize": 10694030,
+    "fileName": "260523_1639.mp3"
+  },
+  {
+    "patientId": "BRD1059",
+    "status": "WOULD_REPLACE",
+    "recordId": "da0eb308-e168-4bfe-8450-6fd760e9f403",
+    "oldSize": "1543620",
+    "newSize": 4014624,
+    "fileName": "260604_1435_01.mp3"
+  },
+  {
+    "patientId": "BRD1060",
+    "status": "WOULD_REPLACE",
+    "recordId": "fc427c8f-32a4-4015-b3b8-b3ca66a4e1c6",
+    "oldSize": "498133",
+    "newSize": 10501559,
+    "fileName": "260523_1712.mp3"
+  },
+  {
+    "patientId": "BRD1061",
+    "status": "WOULD_REPLACE",
+    "recordId": "7d0894fb-cf69-4e68-9c8e-6cf2ebec2527",
+    "oldSize": "1400124",
+    "newSize": 5210823,
+    "fileName": "260604_1446.mp3"
+  },
+  {
+    "patientId": "BRD1063",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1065",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1067",
+    "status": "WOULD_REPLACE",
+    "recordId": "679f2028-2f7e-4b3a-9770-4370c84089c2",
+    "oldSize": "2059914",
+    "newSize": 6309220,
+    "fileName": "260523_1751.mp3"
+  },
+  {
+    "patientId": "BRD1068",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1069",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1070",
+    "status": "WOULD_REPLACE",
+    "recordId": "4ed08a27-073e-4c25-9d93-00bdefcbc937",
+    "oldSize": "475003",
+    "newSize": 5291071,
+    "fileName": "260523_1822.mp3"
+  },
+  {
+    "patientId": "BRD1071",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1072",
+    "status": "WOULD_REPLACE",
+    "recordId": "351b3a4a-79b0-435a-a117-71e05d6d908c",
+    "oldSize": "1692712",
+    "newSize": 5113021,
+    "fileName": "260523_1838.mp3"
+  },
+  {
+    "patientId": "BRD1073",
+    "status": "WOULD_REPLACE",
+    "recordId": "c77f0fe7-c16b-4e7e-9677-705505eba1e5",
+    "oldSize": "371194",
+    "newSize": 18039871,
+    "fileName": "260523_1601.mp3"
+  },
+  {
+    "patientId": "BRD1074",
+    "status": "WOULD_REPLACE",
+    "recordId": "5974317b-d3f1-4598-a74b-5a5f668c4c34",
+    "oldSize": "850260",
+    "newSize": 11717821,
+    "fileName": "260523_1636.mp3"
+  },
+  {
+    "patientId": "BRD1075",
+    "status": "WOULD_REPLACE",
+    "recordId": "fe64f26a-63a6-4388-b913-205c963a2185",
+    "oldSize": "795643",
+    "newSize": 12383003,
+    "fileName": "260523_1629.mp3"
+  },
+  {
+    "patientId": "BRD1076",
+    "status": "WOULD_REPLACE",
+    "recordId": "ab5f1ca3-3590-4e6b-8b73-e9b611741a8e",
+    "oldSize": "339160",
+    "newSize": 10263950,
+    "fileName": "260523_1647.mp3"
+  },
+  {
+    "patientId": "BRD1077",
+    "status": "WOULD_REPLACE",
+    "recordId": "a8d0b17f-7a88-4ed5-84b7-3e17d3008b35",
+    "oldSize": "611911",
+    "newSize": 13176080,
+    "fileName": "260523_1659.mp3"
+  },
+  {
+    "patientId": "BRD1078",
+    "status": "WOULD_REPLACE",
+    "recordId": "eb1a9f42-8c8e-4f2f-9f7b-1b0c92be1338",
+    "oldSize": "863014",
+    "newSize": 10253919,
+    "fileName": "260523_1706.mp3"
+  },
+  {
+    "patientId": "BRD1079",
+    "status": "WOULD_REPLACE",
+    "recordId": "983c87ab-343d-4855-bc0f-acc93e0744d5",
+    "oldSize": "1918722",
+    "newSize": 5768172,
+    "fileName": "260523_1758.mp3"
+  },
+  {
+    "patientId": "BRD1080",
+    "status": "WOULD_REPLACE",
+    "recordId": "bc643cf7-279c-4c03-9793-891223f29d36",
+    "oldSize": "771002",
+    "newSize": 11535381,
+    "fileName": "260523_1714.mp3"
+  },
+  {
+    "patientId": "BRD1081",
+    "status": "WOULD_REPLACE",
+    "recordId": "d31de139-45cd-4098-899d-cc0423f7d47a",
+    "oldSize": "1518416",
+    "newSize": 4481066,
+    "fileName": "260523_1739.mp3"
+  },
+  {
+    "patientId": "BRD1082",
+    "status": "WOULD_REPLACE",
+    "recordId": "2512525d-2ee7-4b94-a6ff-c9bebe5d2e4f",
+    "oldSize": "1260802",
+    "newSize": 3819019,
+    "fileName": "260523_1745.mp3"
+  },
+  {
+    "patientId": "BRD1083",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1084",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1085",
+    "status": "WOULD_REPLACE",
+    "recordId": "d89b3768-4c55-451c-ad78-2063aa31951d",
+    "oldSize": "797703",
+    "newSize": 16926476,
+    "fileName": "BASANTI MONDAL .mp3"
+  },
+  {
+    "patientId": "BRD1086",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1088",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1089",
+    "status": "WOULD_REPLACE",
+    "recordId": "61429631-bf96-42e8-861c-60ad1354c248",
+    "oldSize": "618543",
+    "newSize": 8490340,
+    "fileName": "260523_1913.mp3"
+  },
+  {
+    "patientId": "BRD1090",
+    "status": "WOULD_REPLACE",
+    "recordId": "934449dc-9729-44e9-9af1-5bf59a92ee31",
+    "oldSize": "453321",
+    "newSize": 7557455,
+    "fileName": "260523_1931.mp3"
+  },
+  {
+    "patientId": "BRD1091",
+    "status": "WOULD_REPLACE",
+    "recordId": "a3d32e3f-fa6d-47a9-846d-b2d18bcb625a",
+    "oldSize": "556232",
+    "newSize": 9954869,
+    "fileName": "260523_1937.mp3"
+  },
+  {
+    "patientId": "BRD1093",
+    "status": "WOULD_REPLACE",
+    "recordId": "3e4f1cf5-7f3b-44fc-b090-c465cedb8d4d",
+    "oldSize": "672264",
+    "newSize": 10396234,
+    "fileName": "260523_1946.mp3"
+  },
+  {
+    "patientId": "BRD1094",
+    "status": "WOULD_REPLACE",
+    "recordId": "bed38677-d973-4bdc-87a3-0f6eb90d7fbd",
+    "oldSize": "341545",
+    "newSize": 3058562,
+    "fileName": "WhatsApp Audio 2026-05-26 at 1.59.42 PM.mp4"
+  },
+  {
+    "patientId": "BRD1095",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1096",
+    "status": "WOULD_REPLACE",
+    "recordId": "dc161a02-d6fa-4093-92b7-e7b377ad7f4f",
+    "oldSize": "2345303",
+    "newSize": 7039603,
+    "fileName": "260523_1828.mp3"
+  },
+  {
+    "patientId": "BRD1097",
+    "status": "WOULD_REPLACE",
+    "recordId": "19b75666-a471-45a0-bc09-a2ca565e4b8d",
+    "oldSize": "2240601",
+    "newSize": 6713595,
+    "fileName": "260523_1844.mp3"
+  },
+  {
+    "patientId": "BRD1098",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1099",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1100",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1101",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1102",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1104",
+    "status": "WOULD_REPLACE",
+    "recordId": "bf866c48-5858-4d16-b333-95fcfce311fd",
+    "oldSize": "286041",
+    "newSize": 5644409,
+    "fileName": "WhatsApp Audio 2026-05-26 at 1.58.59 PM.mp4"
+  },
+  {
+    "patientId": "BRD1105",
+    "status": "WOULD_REPLACE",
+    "recordId": "2deabd7a-611f-4eeb-9dd1-e4ba06da3a1a",
+    "oldSize": "475285",
+    "newSize": 5124315,
+    "fileName": "WhatsApp Audio 2026-05-26 at 1.59.26 PM.mp4"
+  },
+  {
+    "patientId": "BRD1106",
+    "status": "WOULD_REPLACE",
+    "recordId": "646f98dc-f614-49bb-9c45-3b4d1b406100",
+    "oldSize": "1025241",
+    "newSize": 12667006,
+    "fileName": "260523_1956.mp3"
+  },
+  {
+    "patientId": "BRD1107",
+    "status": "WOULD_REPLACE",
+    "recordId": "f1a1ea3a-e72c-4d5c-b241-2376a4c346cf",
+    "oldSize": "843590",
+    "newSize": 2642882,
+    "fileName": "260523_1935.mp3"
+  },
+  {
+    "patientId": "BRD1109",
+    "status": "WOULD_REPLACE",
+    "recordId": "549d3775-f712-4bc8-a15e-738640a3ef60",
+    "oldSize": "389994",
+    "newSize": 5109564,
+    "fileName": "WhatsApp Audio 2026-05-26 at 1.59.58 PM.mp4"
+  },
+  {
+    "patientId": "BRD1110",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRD1111",
+    "status": "WOULD_REPLACE",
+    "recordId": "24900cac-e9ea-4aec-97c2-07b6a3fe75c3",
+    "oldSize": "386232",
+    "newSize": 8850203,
+    "fileName": "260528_1804.mp3"
+  },
+  {
+    "patientId": "BRD1112",
+    "status": "WOULD_REPLACE",
+    "recordId": "bd9b66b5-75ed-4369-a78b-b37452cf60c4",
+    "oldSize": "435418",
+    "newSize": 14865680,
+    "fileName": "260604_1619.mp3"
+  },
+  {
+    "patientId": "BRD1113",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5001",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5002",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5003",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5004",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5005",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5006",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5007",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5008",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5009",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5010",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5011",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5012",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5013",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5014",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5015",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5016",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5017",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5018",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5019",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5020",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5021",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5022",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5023",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5024",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5025",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5026",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5027",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5028",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5029",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5030",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5031",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5032",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5033",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5034",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5035",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5036",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5037",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5038",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5039",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5040",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5041",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5042",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5043",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5044",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5045",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5046",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5047",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5048",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5049",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5050",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5051",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5052",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5053",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5054",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5055",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5056",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5057",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5058",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5059",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5060",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5061",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5062",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5063",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5064",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5065",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5066",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5067",
+    "status": "WOULD_REPLACE",
+    "recordId": "8c4cf19a-0d26-435c-8712-f0d96f065678",
+    "oldSize": "799306",
+    "newSize": 10685879,
+    "fileName": "260303_1648.mp3"
+  },
+  {
+    "patientId": "BRS5068",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5069",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5070",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5071",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5072",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5073",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5074",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5075",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5076",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5077",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5078",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5079",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5080",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5081",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5082",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5083",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5084",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5085",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5086",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5087",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5088",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5089",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5090",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5091",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5092",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5093",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5094",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5095",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5096",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5097",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5098",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5099",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5100",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5101",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5102",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5103",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5104",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5105",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5106",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5107",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5108",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5109",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5110",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5111",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5112",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5113",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5114",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5115",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5116",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5117",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5118",
+    "status": "WOULD_REPLACE",
+    "recordId": "c4daaf59-681c-44c4-94db-3823bc91b39a",
+    "oldSize": "259356",
+    "newSize": 7771241,
+    "fileName": "260319_1723.mp3"
+  },
+  {
+    "patientId": "BRS5119",
+    "status": "WOULD_REPLACE",
+    "recordId": "8f0e1bb8-1f39-4aa7-99a9-fff7e6b3833e",
+    "oldSize": "261303",
+    "newSize": 8086591,
+    "fileName": "260319_1740.mp3"
+  },
+  {
+    "patientId": "BRS5120",
+    "status": "WOULD_REPLACE",
+    "recordId": "7fa121d5-4a43-4ebf-b5d3-fa618943685a",
+    "oldSize": "281450",
+    "newSize": 12401184,
+    "fileName": "260324_1635..mp3"
+  },
+  {
+    "patientId": "BRS5121",
+    "status": "WOULD_REPLACE",
+    "recordId": "35f9c69c-46ec-4e9f-9f4a-4d1b344c30ee",
+    "oldSize": "282756",
+    "newSize": 11589925,
+    "fileName": "260331_1743.mp3"
+  },
+  {
+    "patientId": "BRS5122",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5123",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5124",
+    "status": "WOULD_REPLACE",
+    "recordId": "32a0cf08-a4e3-46be-8dc2-a7c5ebdeb071",
+    "oldSize": "261380",
+    "newSize": 9835123,
+    "fileName": "260331_1802.mp3"
+  },
+  {
+    "patientId": "BRS5125",
+    "status": "WOULD_REPLACE",
+    "recordId": "5dd0cfd6-b2b4-4be3-89e9-1fd4c3c85a73",
+    "oldSize": "919219",
+    "newSize": 6512348,
+    "fileName": "260331_1809.mp3"
+  },
+  {
+    "patientId": "BRS5126",
+    "status": "WOULD_REPLACE",
+    "recordId": "7d2b0006-ccdf-4d50-a77c-ba0dfe7a533d",
+    "oldSize": "263589",
+    "newSize": 12159185,
+    "fileName": "260331_1828.mp3"
+  },
+  {
+    "patientId": "BRS5127",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5128",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5129",
+    "status": "WOULD_REPLACE",
+    "recordId": "e5ca8b26-d8ba-4d63-88ca-afcdf7621c76",
+    "oldSize": "269572",
+    "newSize": 10068345,
+    "fileName": "260402_1556.mp3"
+  },
+  {
+    "patientId": "BRS5130",
+    "status": "WOULD_REPLACE",
+    "recordId": "48a6768a-b1c0-4d35-a143-b94e2f7db77b",
+    "oldSize": "257619",
+    "newSize": 8318559,
+    "fileName": "260402_1618.mp3"
+  },
+  {
+    "patientId": "BRS5131",
+    "status": "WOULD_REPLACE",
+    "recordId": "f00fcc9a-4641-4aa9-8bbb-429839e1d8ed",
+    "oldSize": "257928",
+    "newSize": 7884090,
+    "fileName": "260402_1712.mp3"
+  },
+  {
+    "patientId": "BRS5132",
+    "status": "WOULD_REPLACE",
+    "recordId": "2a697c8b-b3f2-4f09-9edf-c901623cc40a",
+    "oldSize": "266203",
+    "newSize": 6494794,
+    "fileName": "260402_1707.mp3"
+  },
+  {
+    "patientId": "BRS5133",
+    "status": "WOULD_REPLACE",
+    "recordId": "d4618150-0c1b-456f-90f4-2fb4a87b107f",
+    "oldSize": "259095",
+    "newSize": 12941605,
+    "fileName": "260402_1748.mp3"
+  },
+  {
+    "patientId": "BRS5134",
+    "status": "WOULD_REPLACE",
+    "recordId": "0825c7ed-4b27-4125-bf8b-f2ae91abcb9b",
+    "oldSize": "286116",
+    "newSize": 5462852,
+    "fileName": "260402_1748.mp3"
+  },
+  {
+    "patientId": "BRS5135",
+    "status": "WOULD_REPLACE",
+    "recordId": "f2d57856-1e42-4bd4-a5a5-3296a45cc703",
+    "oldSize": "268713",
+    "newSize": 9176838,
+    "fileName": "260407_1723.mp3"
+  },
+  {
+    "patientId": "BRS5136",
+    "status": "WOULD_REPLACE",
+    "recordId": "e6811f45-275e-4e04-bb80-5db1ba5e9789",
+    "oldSize": "266435",
+    "newSize": 10804371,
+    "fileName": "260407_1722.mp3"
+  },
+  {
+    "patientId": "BRS5137",
+    "status": "WOULD_REPLACE",
+    "recordId": "f7abf1bb-9dc7-4c5b-bc43-e0f71f2de4b7",
+    "oldSize": "296090",
+    "newSize": 11241347,
+    "fileName": "260407_1711.mp3"
+  },
+  {
+    "patientId": "BRS5138",
+    "status": "WOULD_REPLACE",
+    "recordId": "95607ce0-1ee8-4caa-b8cc-c80a73b32ce3",
+    "oldSize": "278876",
+    "newSize": 8887819,
+    "fileName": "260409_1613.mp3"
+  },
+  {
+    "patientId": "BRS5139",
+    "status": "WOULD_REPLACE",
+    "recordId": "35e6c90f-fef8-490c-854b-07764726a90c",
+    "oldSize": "273171",
+    "newSize": 6514229,
+    "fileName": "260409_1718.mp3"
+  },
+  {
+    "patientId": "BRS5140",
+    "status": "WOULD_REPLACE",
+    "recordId": "884635c6-ecc6-46e6-abb7-d60f3bbf5696",
+    "oldSize": "288637",
+    "newSize": 6951832,
+    "fileName": "260409_1702.mp3"
+  },
+  {
+    "patientId": "BRS5141",
+    "status": "WOULD_REPLACE",
+    "recordId": "cc6a989c-9b5c-4351-adcf-918ca13bce87",
+    "oldSize": "267205",
+    "newSize": 5791995,
+    "fileName": "260409_1725.mp3"
+  },
+  {
+    "patientId": "BRS5142",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5143",
+    "status": "WOULD_REPLACE",
+    "recordId": "628fe8e1-fc0f-49dc-a6bb-65405b8d0efc",
+    "oldSize": "260427",
+    "newSize": 7369373,
+    "fileName": "260414_1646.mp3"
+  },
+  {
+    "patientId": "BRS5144",
+    "status": "WOULD_REPLACE",
+    "recordId": "2571dc84-ae75-4b13-9022-68bf61f002c3",
+    "oldSize": "289758",
+    "newSize": 8618862,
+    "fileName": "260414_1810.mp3"
+  },
+  {
+    "patientId": "BRS5145",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5146",
+    "status": "WOULD_REPLACE",
+    "recordId": "90378688-e162-4ed0-a984-2bae4b18c56a",
+    "oldSize": "265062",
+    "newSize": 5085435,
+    "fileName": "260417_1249.mp3"
+  },
+  {
+    "patientId": "BRS5147",
+    "status": "WOULD_REPLACE",
+    "recordId": "c2a1f357-c133-45cb-936c-ea6fe0201d73",
+    "oldSize": "265475",
+    "newSize": 11265798,
+    "fileName": "260416_1544.mp3"
+  },
+  {
+    "patientId": "BRS5148",
+    "status": "WOULD_REPLACE",
+    "recordId": "48bdd1c2-157c-4b55-97c1-badbf852ee72",
+    "oldSize": "282316",
+    "newSize": 9870232,
+    "fileName": "260416_1625.mp3"
+  },
+  {
+    "patientId": "BRS5149",
+    "status": "WOULD_REPLACE",
+    "recordId": "0b6091c7-07a9-4d8c-b34f-93a1e074630f",
+    "oldSize": "264548",
+    "newSize": 20646535,
+    "fileName": "Rakhi Das.mp3"
+  },
+  {
+    "patientId": "BRS5150",
+    "status": "WOULD_REPLACE",
+    "recordId": "21b51c47-9be4-4d02-bb7a-736fde30ccf9",
+    "oldSize": "262808",
+    "newSize": 10086526,
+    "fileName": "260416_1644.mp3"
+  },
+  {
+    "patientId": "BRS5151",
+    "status": "WOULD_REPLACE",
+    "recordId": "5bb3a6b2-eec8-421d-af07-0b555a68ea63",
+    "oldSize": "263930",
+    "newSize": 7192576,
+    "fileName": "260416_1656.mp3"
+  },
+  {
+    "patientId": "BRS5152",
+    "status": "WOULD_REPLACE",
+    "recordId": "e81b9f8f-cf82-49c0-a80a-5c5d8a845c8d",
+    "oldSize": "278811",
+    "newSize": 6868449,
+    "fileName": "260416_1709.mp3"
+  },
+  {
+    "patientId": "BRS5153",
+    "status": "WOULD_REPLACE",
+    "recordId": "de807c3f-43c1-4c49-aa41-df094e848604",
+    "oldSize": "303991",
+    "newSize": 10159878,
+    "fileName": "260421_1753_01.mp3"
+  },
+  {
+    "patientId": "BRS5155",
+    "status": "WOULD_REPLACE",
+    "recordId": "3bb5973f-fa90-43c9-bbd5-0328c396b4c2",
+    "oldSize": "375718",
+    "newSize": 10279623,
+    "fileName": "260428_1753.mp3"
+  },
+  {
+    "patientId": "BRS5156",
+    "status": "WOULD_REPLACE",
+    "recordId": "e922ce56-29d9-4d4a-b81e-f66e006132f7",
+    "oldSize": "493287",
+    "newSize": 16481928,
+    "fileName": "260428_1713.mp3"
+  },
+  {
+    "patientId": "BRS5157",
+    "status": "WOULD_REPLACE",
+    "recordId": "4eb07e51-97b1-450f-a337-a86a3e45f942",
+    "oldSize": "303226",
+    "newSize": 7890986,
+    "fileName": "260428_1821.mp3"
+  },
+  {
+    "patientId": "BRS5158",
+    "status": "WOULD_REPLACE",
+    "recordId": "df353b76-0b6b-4584-8b43-a1bd3310e646",
+    "oldSize": "263968",
+    "newSize": 7785661,
+    "fileName": "260430_1636.mp3"
+  },
+  {
+    "patientId": "BRS5159",
+    "status": "WOULD_REPLACE",
+    "recordId": "d3f2073f-8d99-4399-a221-51d569dca5fa",
+    "oldSize": "302623",
+    "newSize": 8442692,
+    "fileName": "260505_1725.mp3"
+  },
+  {
+    "patientId": "BRS5160",
+    "status": "WOULD_REPLACE",
+    "recordId": "561f046d-f1e9-430c-bcfb-0551a1e3000b",
+    "oldSize": "260426",
+    "newSize": 6473478,
+    "fileName": "260505_1749.mp3"
+  },
+  {
+    "patientId": "BRS5161",
+    "status": "WOULD_REPLACE",
+    "recordId": "926a67f1-a941-4ee0-8317-50227499b182",
+    "oldSize": "279956",
+    "newSize": 7398839,
+    "fileName": "260507_1634.mp3"
+  },
+  {
+    "patientId": "BRS5162",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5163",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5164",
+    "status": "NOT_FOUND",
+    "reason": "No audio_record in DB"
+  },
+  {
+    "patientId": "BRS5165",
+    "status": "WOULD_REPLACE",
+    "recordId": "eb7e94d7-c3f9-414f-8b82-98bd1a220378",
+    "oldSize": "479613",
+    "newSize": 6967505,
+    "fileName": "260513_1721.mp3"
+  },
+  {
+    "patientId": "BRS5166",
+    "status": "WOULD_REPLACE",
+    "recordId": "a45137d7-9957-4050-95b0-1e663e156b4d",
+    "oldSize": "449314",
+    "newSize": 13196769,
+    "fileName": "260514_1702.mp3"
+  },
+  {
+    "patientId": "BRS5167",
+    "status": "WOULD_REPLACE",
+    "recordId": "8f13d1f2-204a-45d5-b0c2-422b218b19fa",
+    "oldSize": "593751",
+    "newSize": 10096557,
+    "fileName": "260519_1628.mp3"
+  },
+  {
+    "patientId": "BRS5168",
+    "status": "WOULD_REPLACE",
+    "recordId": "d96cadbe-beee-4498-863d-cf6ff50d81c7",
+    "oldSize": "562216",
+    "newSize": 7988789,
+    "fileName": "260519_1722.mp3"
+  },
+  {
+    "patientId": "BRS5169",
+    "status": "WOULD_REPLACE",
+    "recordId": "a63a2ab9-bc9e-4b93-828f-b6d690bba6bb",
+    "oldSize": "271691",
+    "newSize": 4415865,
+    "fileName": "260526_1723.mp3"
+  }
+]

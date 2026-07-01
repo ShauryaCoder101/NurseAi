@@ -36,4 +36,12 @@ router.post('/backfill-audio', benchmarkAuth, benchmarkController.backfillBenchm
 router.post('/metrics', benchmarkAuth, metricsUpload.array('files', 50), metricsController.runAudioMetrics);
 router.post('/metrics-proforma', benchmarkAuth, metricsController.runProformaMetrics);
 
+// Advanced benchmarks (fairness, appropriateness, ensemble)
+const advBenchmark = require('../controllers/advancedBenchmarkController');
+router.post('/advanced/run', benchmarkAuth, advBenchmark.runAdvancedBenchmarks);
+router.get('/advanced/status', benchmarkAuth, advBenchmark.getRunStatus);
+router.get('/advanced/results', benchmarkAuth, advBenchmark.getResults);
+router.get('/advanced/results/:audioId', benchmarkAuth, advBenchmark.getAudioResults);
+router.get('/advanced/models', benchmarkAuth, advBenchmark.getModels);
+
 module.exports = router;

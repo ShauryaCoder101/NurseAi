@@ -3,8 +3,26 @@
 const path = require('path');
 const fs = require('fs');
 const {dbHelpers} = require('../config/database');
+const {createSignedAudioUrl, isStorageConfigured} = require('./supabaseStorage');
 
 const RECORDS_DIR = path.join(__dirname, '../../patient_records');
+
+/** Always prefer signed URL from Supabase. Reconstructs storage_path if missing. */
+async function resolveAudioUrl(fileUrl, storagePath, recordId, fileName) {
+  if (!storagePath && recordId && fileName) {
+    const safeName = String(fileName).replace(/\\/g, '/');
+    storagePath = `audio_records/${recordId}/${safeName}`;
+  }
+  if (storagePath && isStorageConfigured()) {
+    try {
+      const signedUrl = await createSignedAudioUrl(storagePath, 3600);
+      if (signedUrl) return signedUrl;
+    } catch (err) {
+      console.error('Failed to create signed audio URL:', err.message);
+    }
+  }
+  return fileUrl || null;
+}
 
 function ensureRecordsDir() {
   if (!fs.existsSync(RECORDS_DIR)) {
@@ -99,8 +117,10 @@ function generatePatientHtml(record) {
 
       if (chips.length > 0) {
         let audioPlayer = '';
-        if (ar.fileUrl) {
-          audioPlayer = `<div style="margin-top: 16px;"><audio controls style="width: 100%; max-width: 400px; height: 36px;" src="${escapeHtml(ar.fileUrl)}"></audio></div>`;
+        if (ar.id) {
+          // Use proxy endpoint to avoid CORS issues with Supabase signed URLs
+          const audioSrc = `/api/doctor/audio/${encodeURIComponent(ar.id)}`;
+          audioPlayer = `<div style="margin-top: 16px;"><audio controls style="width: 100%; max-width: 400px; height: 36px;" src="${audioSrc}"></audio></div>`;
         }
         
         sectionsHtml += `
@@ -352,8 +372,10 @@ function generateVisitHtml(record, targetVisitId) {
 
     if (chips.length > 0) {
       let audioPlayer = '';
-      if (ar.fileUrl) {
-        audioPlayer = `<div style="margin-top: 16px;"><audio controls style="width: 100%; max-width: 400px; height: 36px;" src="${escapeHtml(ar.fileUrl)}"></audio></div>`;
+      if (ar.id) {
+        // Use proxy endpoint to avoid CORS/CSP issues with Supabase signed URLs
+        const audioSrc = `/api/doctor/audio/${encodeURIComponent(ar.id)}`;
+        audioPlayer = `<div style="margin-top: 16px;"><audio controls style="width: 100%; max-width: 400px; height: 36px;" src="${audioSrc}"></audio></div>`;
       }
         
       sectionsHtml += `
@@ -615,6 +637,7 @@ async function regeneratePatientHtml(userUid, patientId) {
           mimeType: ar.mime_type || null,
           filePath: ar.file_path || null,
           fileUrl: ar.file_url || null,
+          storagePath: ar.storage_path || null,
           photoName: ar.photo_name || null,
           photoPath: ar.photo_path || null,
         },
@@ -685,6 +708,18 @@ async function regeneratePatientHtml(userUid, patientId) {
     const visits = Array.from(visitMap.values());
     visits.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     visits.forEach((v, i) => (v.visitNumber = i + 1));
+
+    // Resolve audio URLs for deployment compatibility
+    for (const visit of visits) {
+      if (visit.audioRecord && (visit.audioRecord.fileUrl || visit.audioRecord.id)) {
+        visit.audioRecord.fileUrl = await resolveAudioUrl(
+          visit.audioRecord.fileUrl,
+          visit.audioRecord.storagePath,
+          visit.audioRecord.id,
+          visit.audioRecord.fileName
+        );
+      }
+    }
 
     const record = {
       patientId,
