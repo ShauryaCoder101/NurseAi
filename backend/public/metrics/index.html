@@ -311,27 +311,38 @@
     <div class="loading"><div class="spinner-lg"></div><br>Loading stats...</div>
   </div>
 
-  <!-- Benchmarking -->
-  <div class="section-title"><span class="icon">🧪</span> Benchmarking Evaluations</div>
+  <!-- Curated Benchmark Batch -->
+  <div class="section-title"><span class="icon">📊</span> Curated Benchmark Batch (50 Cases)</div>
+  <div style="color: var(--text-secondary); font-size: 13px; margin-top: -14px; margin-bottom: 20px;">37 from Benchmark-3 + 13 from Benchmark-2</div>
+  <div class="doctor-cards" id="curatedDoctorCards">
+    <div class="loading"><div class="spinner-lg"></div><br>Loading curated batch data...</div>
+  </div>
+
+  <!-- Curated Case-Level Table -->
+  <div style="margin-top:40px;">
+    <div class="section-title"><span class="icon">📋</span> Curated Batch – Case-Level Doctor Evaluations</div>
+    <div id="curatedCaseTable">
+      <div class="loading"><div class="spinner-lg"></div><br>Loading curated case evaluations...</div>
+    </div>
+  </div>
+
+  <hr style="border-color: var(--border); margin: 48px 0;">
+
+  <!-- Previous Benchmarks: Benchmarking -->
+  <div class="section-title"><span class="icon">🧪</span> Previous Benchmarks – Doctor Evaluations</div>
   <div class="doctor-cards" id="doctorCards">
     <div class="loading"><div class="spinner-lg"></div><br>Loading benchmarking data...</div>
   </div>
 
-  <!-- Case-Level Table -->
+  <!-- Previous Benchmarks: Case-Level Table -->
   <div style="margin-top:40px;">
-    <div class="section-title"><span class="icon">📋</span> Case-Level Doctor Evaluations</div>
+    <div class="section-title"><span class="icon">📋</span> Previous Benchmarks – Case-Level Doctor Evaluations</div>
     <div id="caseTableContainer">
       <div class="loading"><div class="spinner-lg"></div><br>Loading case evaluations...</div>
     </div>
   </div>
 
-  <!-- LLM-as-a-Judge Results -->
-  <div style="margin-top:40px;">
-    <div class="section-title"><span class="icon">🤖</span> LLM-as-a-Judge Benchmark Results</div>
-    <div id="llmTableContainer">
-      <div class="loading"><div class="spinner-lg"></div><br>Loading LLM results...</div>
-    </div>
-  </div>
+
 </div>
 
 <script>
@@ -342,12 +353,15 @@ async function loadMetrics() {
     if (!data.success) throw new Error(data.error);
 
     renderAppStats(data.data.app);
+    renderCuratedDoctorCards(data.data.curatedBatch?.doctorStats || []);
+    renderCuratedCaseTable(data.data.curatedBatch?.caseEvaluations || []);
     renderBenchmarking(data.data.benchmarking);
     renderCaseTable(data.data.caseEvaluations || []);
-    renderLlmTable(data.data.llmResults || []);
   } catch (err) {
     console.error('Metrics load error:', err);
     document.getElementById('statsGrid').innerHTML = '<div class="no-data">Failed to load metrics.</div>';
+    document.getElementById('curatedDoctorCards').innerHTML = '<div class="no-data">Failed to load curated batch data.</div>';
+    document.getElementById('curatedCaseTable').innerHTML = '<div class="no-data">Failed to load curated case data.</div>';
     document.getElementById('doctorCards').innerHTML = '<div class="no-data">Failed to load benchmarking data.</div>';
     document.getElementById('caseTableContainer').innerHTML = '<div class="no-data">Failed to load case data.</div>';
   }
@@ -499,6 +513,106 @@ function renderCaseTable(cases) {
     </div>
   `;
 }
+
+function renderCuratedDoctorCards(benchmarking) {
+  const container = document.getElementById('curatedDoctorCards');
+  if (!benchmarking || benchmarking.length === 0) {
+    container.innerHTML = '<div class="no-data">No doctors have completed curated batch evaluations yet.</div>';
+    return;
+  }
+
+  container.innerHTML = benchmarking.map((doc, i) => {
+    const invalidItems = doc.negativeDetails.filter(d => d.criterion === 'valid');
+    const inappropriateItems = doc.negativeDetails.filter(d => d.criterion === 'appropriate');
+    const harmfulItems = doc.negativeDetails.filter(d => d.criterion === 'safe_severe');
+
+    return `
+      <div class="doctor-card">
+        <div class="doctor-header">
+          <div class="doctor-email">👨‍⚕️ ${escapeHtml(doc.doctorEmail)}</div>
+          <div class="doctor-badge">${doc.casesEvaluated} cases evaluated</div>
+        </div>
+        <div class="eval-grid">
+          <div class="eval-stat"><div class="eval-stat-value neutral">${doc.casesEvaluated}</div><div class="eval-stat-label">Evaluated</div></div>
+          <div class="eval-stat"><div class="eval-stat-value positive">${doc.valid}</div><div class="eval-stat-label">Valid</div></div>
+          <div class="eval-stat"><div class="eval-stat-value positive">${doc.appropriate}</div><div class="eval-stat-label">Appropriate</div></div>
+          <div class="eval-stat"><div class="eval-stat-value positive">${doc.safe}</div><div class="eval-stat-label">Safe</div></div>
+          <div class="eval-stat"><div class="eval-stat-value negative">${doc.invalid}</div><div class="eval-stat-label">Invalid</div></div>
+          <div class="eval-stat"><div class="eval-stat-value negative">${doc.inappropriate}</div><div class="eval-stat-label">Inappropriate</div></div>
+          <div class="eval-stat"><div class="eval-stat-value negative">${doc.harmful}</div><div class="eval-stat-label">Harmful</div></div>
+        </div>
+        <div class="negative-section">
+          ${renderDropdown(('cur-' + i), 'invalid', 'Invalid Cases', invalidItems)}
+          ${renderDropdown(('cur-' + i), 'inappropriate', 'Inappropriate Cases', inappropriateItems)}
+          ${renderDropdown(('cur-' + i), 'harmful', 'Harmful Cases', harmfulItems)}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCuratedCaseTable(cases) {
+  const container = document.getElementById('curatedCaseTable');
+  if (!cases || cases.length === 0) {
+    container.innerHTML = '<div class="no-data">No curated benchmark cases found.</div>';
+    return;
+  }
+
+  function icon(evalObj, criterion) {
+    if (!evalObj || !evalObj[criterion]) return '<span class="dash">—</span>';
+    const v = evalObj[criterion].value;
+    const positives = { valid: 'Valid', appropriate: 'Appropriate', safe_severe: 'Safe' };
+    return v === positives[criterion]
+      ? '<span class="tick">✓</span>'
+      : '<span class="cross">✗</span>';
+  }
+
+  function commentBlock(evalObj) {
+    if (!evalObj) return '<span class="dash">—</span>';
+    const criteria = [
+      { key: 'safe_severe', label: 'safe' },
+      { key: 'appropriate', label: 'appropriate' },
+      { key: 'valid', label: 'valid' },
+    ];
+    const parts = criteria.map(c => {
+      const comment = evalObj[c.key]?.comment;
+      return `<span class="c-label">${c.label}:</span> ${comment ? escapeHtml(comment) : '—'}`;
+    });
+    return parts.join('<br>');
+  }
+
+  const rows = cases.map(c => `
+    <tr onclick="window.open('/verify/doctor/benchmarking?caseId=${c.audioId}', '_blank')" style="cursor:pointer;" title="Open case in benchmarking portal">
+      <td>${c.caseNumber}</td>
+      <td>${escapeHtml(c.fileName)}</td>
+      <td>${icon(c.abhitesh, 'valid')} ${icon(c.chetanya, 'valid')}</td>
+      <td>${icon(c.abhitesh, 'appropriate')} ${icon(c.chetanya, 'appropriate')}</td>
+      <td>${icon(c.abhitesh, 'safe_severe')} ${icon(c.chetanya, 'safe_severe')}</td>
+      <td class="comment-cell">${commentBlock(c.abhitesh)}</td>
+      <td class="comment-cell">${commentBlock(c.chetanya)}</td>
+    </tr>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="case-table-wrap">
+      <table class="case-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Case</th>
+            <th>Valid (A / C)</th>
+            <th>Appropriate (A / C)</th>
+            <th>Safe (A / C)</th>
+            <th>Abhitesh Comments</th>
+            <th>Chetanya Comments</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderLlmTable(results) {
   const container = document.getElementById('llmTableContainer');
   if (!results || results.length === 0) {
